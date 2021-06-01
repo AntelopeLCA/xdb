@@ -200,16 +200,16 @@ Option 1: explicit, nested
       "origin": "my.data.source",
       "processes": [
         {
-	  "entityId": "4xad",
-	  "entityType": "process",
-	  "name": "Aluminium casting plant"
-	},
+          "entityId": "4xad",
+          "entityType": "process",
+          "name": "Aluminium casting plant"
+        },
         {
-	  "entityId": "4xae",
-	  "entityType": "process",
-	  "name": "Aluminium smelting plant"
-	},
-	....
+          "entityId": "4xae",
+          "entityType": "process",
+          "name": "Aluminium smelting plant"
+        },
+        ....
       ]
     }
 
