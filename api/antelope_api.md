@@ -46,10 +46,11 @@ Origin-specific queries:
     APIv2_ROOT/[origin]/contexts
     APIv2_ROOT/[origin]/flowables
 
-    APIv2_ROOT/[origin]/count              - count of all entity types
-    APIv2_ROOT/[origin]/count/<entityies>  - count of specified entity type
-    APIv2_ROOT/[origin]/count/processes
-    APIv2_ROOT/[origin]/count/flows
+    # would these be better as /processes/count?
+    APIv2_ROOT/[origin]/count              - dict containing count of all entity types
+    APIv2_ROOT/[origin]/count/<entityes>   - int reporting count of specified entity type
+    APIv2_ROOT/[origin]/count/processes    - /count/process synonym
+    APIv2_ROOT/[origin]/count/flows        - /count/flow synonym
     APIv2_ROOT/[origin]/count/quantities
     APIv2_ROOT/[origin]/count/contexts
     APIv2_ROOT/[origin]/count/flowables
