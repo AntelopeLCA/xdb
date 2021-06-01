@@ -177,6 +177,7 @@ For these queries, I have the decision of whether and how to state the entity's 
 Query: `APIv2_ROOT/my.data.source/processes?name=aluminium`
 
 Option 1: explicit, full:
+
     [
       {
         "origin": "my.data.source",
@@ -194,6 +195,7 @@ Option 1: explicit, full:
     ]
 
 Option 1: explicit, nested
+
     {
       "origin": "my.data.source",
       "processes": [
@@ -212,6 +214,7 @@ Option 1: explicit, nested
     }
 
 Option 3: unspecified (implicit, most compact):
+
     [
       {
         "entityId": "4xad",
