@@ -33,24 +33,20 @@ A tuple of (origin, external reference) specifies a distinct entity.  In the eve
 
     APIv2_ROOT/origins             - return list of known origins
 
-these are not really server-wide, except for qdb, which is a different server:
-
-    APIv2_ROOT/flowables	   - list flowables; query to search
-    APIv2_ROOT/synonyms/[term]     - list synonyms for the specified term
-    APIv2_ROOT/synonyms?term=term  -  "" ""
+When I think of more, I'll put them here.
 
 ### Index queries
 
 Origin-specific queries:
 
-    APIv2_ROOT/[origin]/<entities>  - list entities; query to search
+    APIv2_ROOT/[origin]/<entities>  - list entity records; query to search
     APIv2_ROOT/[origin]/processes
     APIv2_ROOT/[origin]/flows
     APIv2_ROOT/[origin]/quantities
     APIv2_ROOT/[origin]/contexts
     APIv2_ROOT/[origin]/flowables
 
-    APIv2_ROOT/[origin]/count	           - count of all entity types
+    APIv2_ROOT/[origin]/count              - count of all entity types
     APIv2_ROOT/[origin]/count/<entityies>  - count of specified entity type
     APIv2_ROOT/[origin]/count/processes
     APIv2_ROOT/[origin]/count/flows
@@ -60,16 +56,22 @@ Origin-specific queries:
 
     APIv2_ROOT/[origin]/synonyms/[term]       - list synonyms for the specified term
     APIv2_ROOT/[origin]/synonyms?term=term    -  ""  ""
-    APIv2_ROOT/[origin]/get_context/[term]    - return canonical context name for term
+    APIv2_ROOT/[origin]/get_context/[term]    - return canonical full context for term, as a list
     APIv2_ROOT/[origin]/get_context?term=term -  ""  ""
 
 Entity-specific queries:
 
+    APIv2_ROOT/[origin]/[entity id]             - return a thorough description of the entity
     APIv2_ROOT/[origin]/[entity id]/reference   - return a unitary reference*
     APIv2_ROOT/[origin]/[process id]/references - return list of reference exchanges
+    APIv2_ROOT/[origin]/[flow id]/unit          - unit string of the flow's reference quantity
+    APIv2_ROOT/[origin]/[flow id]/context       - the flow's full context as a list (or empty list)
     APIv2_ROOT/[origin]/[flow id]/targets       - return reference exchanges containing the flow
+    APIv2_ROOT/[origin]/[context]/parent        - context's parent or none
+    APIv2_ROOT/[origin]/[context]/sense	        - context's parent or none
+    APIv2_ROOT/[origin]/[context]/subcontexts   - list of subcontexts
 
-* Processes are constituted to have zero or more reference exchanges, though most have only one.  If a process has a single reference exchange (or if a unitary reference is somehow designated), it will be returned; otherwise a 404 is returned with the message "Multiple References".
+* A quantity's reference is a unit (string); a flow's reference is a quantity record.  Processes are constituted to have zero or more reference exchanges, though most have only one.  If a process has a single reference exchange (or if a unitary reference is somehow designated), it will be returned; otherwise a 404 is returned with the message "No Reference" or "Multiple References".
 
 On the other hand, non-processes with unitary references can always be returned as single-entry lists, so the `references` query will never return an error for a valid entity.
 
@@ -77,9 +79,8 @@ On the other hand, non-processes with unitary references can always be returned 
 
 Part of the point of antelope is to operationalize access to metadata.
 
-    APIv2_ROOT/[origin]/properties  		   - return complete set of all properties known
-    APIv2_ROOT/[origin]/[entity id]                - return a thorough description of the entity
-    APIv2_ROOT/[origin]/[entity id]/doc		   - return an auto-generated entity doc page 
+    APIv2_ROOT/[origin]/properties                 - return complete set of all properties known
+    APIv2_ROOT/[origin]/[entity id]/doc            - return an auto-generated entity doc page 
     APIv2_ROOT/[origin]/[entity id]/properties     - return a list of properties defined for entity
     APIv2_ROOT/[origin]/[entity id]/doc/properties -   ""  ""
     APIv2_ROOT/[origin]/[entity id]/doc/[property] - get the specified property
@@ -143,13 +144,84 @@ Only in cases where processes have a single designated reference exchange, may t
 All background aspect queries return lists of exchanges, either reference exchanges (value always 1) or dependent exchanges (normalized to reference exchange).  The "aspects" are as follows:
 
     APIv2_ROOT/[origin]/[process id]/[ref flow]/consumers	- [reference exchanges]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/dependencies	- [exchange values]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/dependencies    - [exchange values]
     APIv2_ROOT/[origin]/[process id]/[ref flow]/emissions	- [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/cutoffs		- [exchange values]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/cutoffs         - [exchange values]
     APIv2_ROOT/[origin]/[process id]/[ref flow]/lci		- [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/sys_lci		- [exchange values]	
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/sys_lci         - [exchange values]	
     APIv2_ROOT/[origin]/[process id]/[ref flow]/foreground	- [exchange values]
     APIv2_ROOT/[origin]/[process id]/[ref flow]/ad		- [exchange values]
     APIv2_ROOT/[origin]/[process id]/[ref flow]/bf		- [exchange values]
 
 Only flows terminated to *elementary* contexts are emissions; other flows (both unterminated and terminated to intermediate contexts) are "cutoffs".
+
+## Summary of return types:
+
+ * String
+ * Integer
+ * Float
+ * EntityRecord - origin, entity ID, entity type, name
+ * RichEntityRecord - EntityRecord + search key, search value (*for use in answering a search query*)
+ * Context - name, parent, sense
+ * Reference Exchange - origin, process, flow, direction, locale[, comment]
+ * Exchange - origin, process, flow, termination, locale[, comment]
+ * ExchangeValue - Exchange + value
+ * ExteriorFlow - origin, flow, direction, termination
+
+I think that's all of them.
+
+## A key question for Return Data
+
+For these queries, I have the decision of whether and how to state the entity's origin in the response.  The client must know the origin because the origin is part of the request-- thus re-stating it wastes bandwidth? or is it not a concern bc of gzip?
+
+Query: `APIv2_ROOT/my.data.source/processes?name=aluminium`
+
+Option 1: explicit, full:
+    [
+      {
+        "origin": "my.data.source",
+        "entityId": "4xad",
+        "entityType": "process",
+        "name": "Aluminium casting plant"
+      },
+      {
+        "origin": "my.data.source",
+        "entityId": "4xae",
+        "entityType": "process",
+        "name": "Aluminium smelting plant"
+      },
+      ...
+    ]
+
+Option 1: explicit, nested
+    {
+      "origin": "my.data.source",
+      "processes": [
+        {
+	  "entityId": "4xad",
+	  "entityType": "process",
+	  "name": "Aluminium casting plant"
+	},
+        {
+	  "entityId": "4xae",
+	  "entityType": "process",
+	  "name": "Aluminium smelting plant"
+	},
+	....
+      ]
+    }
+
+Option 3: unspecified (implicit, most compact):
+    [
+      {
+        "entityId": "4xad",
+        "entityType": "process",
+        "name": "Aluminium casting plant"
+      },
+      {
+        "entityId": "4xae",
+        "entityType": "process",
+        "name": "Aluminium smelting plant"
+      },
+      ...
+    ]
