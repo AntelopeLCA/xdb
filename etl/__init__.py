@@ -51,4 +51,3 @@ def run_static_catalog(cat_root):
             assert ':'.join([origin, iface]) in s_cat.interfaces
 
     return s_cat  # use this to answer all HTTP queries
-

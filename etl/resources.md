@@ -40,7 +40,7 @@ The current plan is to store data resources on S3, and then sync those files ove
 initialized.  The data structure on S3 follows the REST API to one level down:
 
     s3://antelope-data/qdb                                                -- qdb-specific content
-    s3://antelope-data/[origin]/[interface]/config.json                   -- configuration info
+    s3://antelope-data/[origin]/[interface]/[provider type]/config.json   -- configuration info
     s3://antelope-data/[origin]/[interface]/[provider type]/[source]      -- the data source
     
 The container configuration will provide a list of `origins`; for each origin the container initializer should 

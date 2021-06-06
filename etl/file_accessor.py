@@ -22,7 +22,7 @@ class AwsFileAccessor(object):
             yield k
 
     @staticmethod
-    def get_config(source):
+    def read_config(source):
         cfg = os.path.join(os.path.dirname(source), 'config.json')
         if os.path.exists(cfg):
             with open(cfg) as fp:
@@ -51,6 +51,6 @@ class AwsFileAccessor(object):
             raise ValueError('Path not contained within our filespace')
         rel_source = source[len(self._path)+1:]
         org, iface, ds_type, fn = rel_source.split(os.path.sep)  # note os.pathsep is totally different
-        cfg = self.get_config(source)
+        cfg = self.read_config(source)
         priority = cfg.pop('priority', DEFAULT_PRIORITIES[iface])
         return LcResource(org, source, ds_type, interfaces=iface, priority=priority, **cfg)
