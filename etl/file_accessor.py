@@ -17,6 +17,10 @@ class AwsFileAccessor(object):
         self._origins = os.listdir(self._path)
 
     @property
+    def path(self):
+        return self._path
+
+    @property
     def origins(self):
         for k in self._origins:
             yield k
@@ -30,6 +34,15 @@ class AwsFileAccessor(object):
         else:
             config = dict()
         return config
+
+    def clear_configs(self, origin):
+        opath = os.path.join(self.path, origin)
+        for iface in os.listdir(opath):
+            ipath = os.path.join(opath, iface)
+            for ds_type in os.listdir(ipath):
+                dc = os.path.join(ipath, ds_type, 'config.json')
+                if os.path.exists(dc):
+                    os.remove(dc)
 
     def gen_sources(self, org, iface):
         iface_path = os.path.join(self._path, org, iface)

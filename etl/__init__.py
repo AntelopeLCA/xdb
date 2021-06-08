@@ -1,6 +1,7 @@
 import os
+from .file_accessor import AwsFileAccessor
 from .resource_loader import AwsResourceLoader
-from .index_and_order import is_7z, AwsIndexAndOrder
+from .index_and_order import is_7z, IndexAndOrder
 from patoolib import repack_archive
 
 from antelope_core.catalog import StaticCatalog, LcCatalog
@@ -31,11 +32,13 @@ CONFIG_ORIGINS = TEST_ORIGINS = ('ecoinvent.3.7.1.cutoff', )
 
 
 def preprocess_resources(data_root, origins):
-    aio = AwsIndexAndOrder(data_root)
-    assert set(aio.origins) == set(CONFIG_ORIGINS)
+    aws = AwsFileAccessor(data_root)
+    assert set(aws.origins) == set(CONFIG_ORIGINS)
 
     for origin in origins:
-        aio.run_origin(origin)
+        src = next(aws.gen_sources(origin, 'exchange'))
+        aio = IndexAndOrder(aws, origin, src)
+        aio.run()
 
 
 def construct_container_catalog(data_root, cat_root):

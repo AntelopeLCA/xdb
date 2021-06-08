@@ -1,6 +1,7 @@
 """
 
-Given an exchange resource on aws-data, build and deploy index and background resources
+Given an exchange resource on aws-data, build and deploy index and background resources.  The IndexAndOrder class
+is meant to be run INTERACTIVELY, and the product of the interaction is a set of operable configuration files.
 
 The steps here are:
 
@@ -24,8 +25,7 @@ import magic
 from antelope import BasicQuery
 from antelope_core.lc_resource import LcResource
 from antelope_background import TarjanBackground
-from antelope_core.archives import InterfaceError
-from .file_accessor import AwsFileAccessor
+from antelope_core.archives import InterfaceError, CheckTerms
 
 
 def _hash_file(source):
@@ -56,30 +56,75 @@ class StandAloneQuery(BasicQuery):
         else:
             return super(StandAloneQuery, self)._perform_query(itype, attrname, exc, *args, strict=strict, **kwargs)
 
+    def check_terms(self):
+        """
+        We want to inspect the archive's exchanges
 
-class AwsIndexAndOrder(AwsFileAccessor):
+        :return:
+        """
+        return CheckTerms(self)
 
-    def __init__(self, *args, **kwargs):
-        super(AwsIndexAndOrder, self).__init__(*args, **kwargs)
-        self._e_res = None
+
+class IndexAndOrder(object):
+
+    @property
+    def _tgt_ix(self):
+        return os.path.join(self._fa.path, self.origin, 'index', 'json', self._s_hash + '.json.gz')
+
+    @property
+    def _tgt_bg(self):
+        return os.path.join(self._fa.path, self.origin, 'background', 'TarjanBackground', self._s_hash + '.mat')
+
+    def __init__(self, file_accessor, origin, source):
+        self._fa = file_accessor
+        if origin not in self._fa.origins:
+            raise ValueError("origin %s not known" % origin)
+
+        self._origin = origin
+        self._source = source
+        self._saq = None
         self._i_res = None
         self._b_res = None
-        self._tgt_bg = None
-        self._tgt_ix = None
+
+        self._s_hash = _hash_file(source)
+        self._e_res = self._fa.create_resource(source)
+
+        if self._check_ix() and self._check_bg():
+            return
+
+        # at least one is missing- so we need to instantiate the resource
+
+    def run(self):
+        if is_7z(self._source):
+            with tempfile.TemporaryDirectory() as dirpath:
+                extract_archive(self._source, outdir=dirpath)
+
+                cfg = self._fa.read_config(self._source)
+                res = LcResource(self.origin, dirpath, self._e_res.ds_type, interfaces='exchange', **cfg)
+                self.index_res(res)
+                self._e_res.check(None)
+
+                self.order_res()
+
+        else:
+            self.index_res(self._e_res)
+            self.order_res()
+
+    @property
+    def origin(self):
+        return self._origin
+
+    @property
+    def query(self):
+        return self._saq
 
     def check_bg(self, **kwargs):
         self._b_res.check_bg(**kwargs)
 
-    def _target_index(self, origin, s_hash):
-        return os.path.join(self._path, origin, 'index', 'json', s_hash + '.json.gz')
-
-    def _target_background(self, origin, s_hash):
-        return os.path.join(self._path, origin, 'background', 'TarjanBackground', s_hash + '.mat')
-
     def write_config(self, **kwargs):
         cfg = os.path.join(os.path.dirname(self._e_res.source), 'config.json')
         ex_cfg = {
-            'config': self._e_res.config
+            'config': self._e_res.export_config()
         }
         ex_cfg.update(**kwargs)
         with open(cfg, 'w') as fp:
@@ -97,7 +142,9 @@ class AwsIndexAndOrder(AwsFileAccessor):
         with open(index_config, 'w') as fp:
             json.dump(ix_cfg, fp, indent=2)
 
-    def _index_and_order_res(self, res):
+    def index_res(self, res=None):
+        if res is None:
+            res = self._e_res
         res.check(None)
 
         if self._i_res is None:
@@ -107,23 +154,24 @@ class AwsIndexAndOrder(AwsFileAccessor):
             self._i_res.check(None)
             self.write_index_config()
 
-        self._order_res(res)
+        self._saq = StandAloneQuery(res.archive, self._i_res.archive)
 
-    def _order_res(self, res):
-
-        saq = StandAloneQuery(res.archive, self._i_res.archive)
+    def order_res(self):
 
         if self._b_res is None:
             os.makedirs(os.path.dirname(self._tgt_bg), exist_ok=True)
             bg = TarjanBackground(self._tgt_bg, save_after=True)
-            bg.create_flat_background(saq)
+            bc = bg.make_interface('configure')
+            bc.apply_config(self._e_res.config)  # only prefer_provider will get applied
+
+            bg.create_flat_background(self._saq)
             self._b_res = LcResource.from_archive(bg, 'background', source=self._tgt_bg)
             self._b_res.check(None)
 
     def _check_ix(self):
         if os.path.exists(self._tgt_ix):
             # load
-            self._i_res = self.create_resource(self._tgt_ix)
+            self._i_res = self._fa.create_resource(self._tgt_ix)
             self._i_res.check(None)
             return True
         self._i_res = None
@@ -132,7 +180,7 @@ class AwsIndexAndOrder(AwsFileAccessor):
     def _check_bg(self):
         if os.path.exists(self._tgt_bg):
             # load
-            self._b_res = self.create_resource(self._tgt_bg)
+            self._b_res = self._fa.create_resource(self._tgt_bg)
             self._b_res.check(None)
             return True
         self._b_res = None
@@ -148,28 +196,6 @@ class AwsIndexAndOrder(AwsFileAccessor):
             os.remove(self._tgt_ix)
         self._i_res = None
         self._clear_bg()
-
-    def run_source(self, source, origin):
-        s_hash = _hash_file(source)
-        self._e_res = self.create_resource(source)
-        self._tgt_ix = self._target_index(origin, s_hash)
-        self._tgt_bg = self._target_background(origin, s_hash)
-        if self._check_ix() and self._check_bg():
-            return
-
-        # at least one is missing- so we need to instantiate the resource
-
-        if is_7z(source):
-            with tempfile.TemporaryDirectory() as dirpath:
-                extract_archive(source, outdir=dirpath)
-
-                cfg = self.read_config(source)
-                res = LcResource(origin, dirpath, self._e_res.ds_type, interfaces='exchange', **cfg)
-                self._index_and_order_res(res)
-
-                self._e_res.check(None)
-        else:
-            self._index_and_order_res(self._e_res)
 
     def configure(self, option, *args):
         """
@@ -195,11 +221,9 @@ class AwsIndexAndOrder(AwsFileAccessor):
             if option in ("set_reference", "unset_reference"):
                 self._clear_ix()
 
+            if option in ("preferred_provider", ):
+                self._clear_bg()
+
             return True
         print('Configuration failed validation.')
         return False
-
-    def run_origin(self, origin):
-        if origin in self._origins:
-            for source in self.gen_sources(origin, 'exchange'):
-                self.run_source(source, origin)

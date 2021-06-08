@@ -21,8 +21,11 @@ class AwsResourceLoader(AwsFileAccessor):
                 res = self.create_resource(source)
                 cat.add_resource(res)
                 res.check(cat)
+        cat.query(org).check_bg()
 
-    def load_resources(self, cat):
-        for org in self.origins:
-            self._load_origin(cat, org)
-            cat.query(org).check_bg()
+    def load_resources(self, cat, origin=None):
+        if origin is None:
+            for org in self.origins:
+                self._load_origin(cat, org)
+        else:
+            self._load_origin(cat, origin)
