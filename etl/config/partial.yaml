@@ -1,0 +1,5 @@
+solids:
+  sync_data:
+    inputs:
+      bucket: "antelope-data-fixture"
+      data_path: "/antelope-data-fixture"
