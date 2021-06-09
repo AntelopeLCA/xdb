@@ -31,6 +31,7 @@ A tuple of (origin, external reference) specifies a distinct entity.  In the eve
 
 ### server-wide queries
 
+    APIv2_ROOT/                    - return server metadata, incl list of origins
     APIv2_ROOT/origins             - return list of known origins
 
 When I think of more, I'll put them here.
@@ -38,6 +39,7 @@ When I think of more, I'll put them here.
 ### Index queries
 
 Origin-specific queries:
+
 
     APIv2_ROOT/[origin]/<entities>  - list entity records; query to search
     APIv2_ROOT/[origin]/processes
@@ -48,17 +50,16 @@ Origin-specific queries:
 
     # would these be better as /processes/count?
     APIv2_ROOT/[origin]/count              - dict containing count of all entity types
-    APIv2_ROOT/[origin]/count/<entityes>   - int reporting count of specified entity type
+    APIv2_ROOT/[origin]/count/<entities>   - int reporting count of specified entity type
     APIv2_ROOT/[origin]/count/processes    - /count/process synonym
     APIv2_ROOT/[origin]/count/flows        - /count/flow synonym
     APIv2_ROOT/[origin]/count/quantities
     APIv2_ROOT/[origin]/count/contexts
     APIv2_ROOT/[origin]/count/flowables
 
-    APIv2_ROOT/[origin]/synonyms/[term]       - list synonyms for the specified term
-    APIv2_ROOT/[origin]/synonyms?term=term    -  ""  ""
-    APIv2_ROOT/[origin]/get_context/[term]    - return canonical full context for term, as a list
-    APIv2_ROOT/[origin]/get_context?term=term -  ""  ""
+    APIv2_ROOT/[origin]?synonyms=term      - list synonyms for the specified term
+    APIv2_ROOT/[origin]/contexts/[term]    - return canonical full context for term, as a list
+    APIv2_ROOT/[origin]?context=term       -  ""  ""
 
 Entity-specific queries:
 
@@ -68,6 +69,7 @@ Entity-specific queries:
     APIv2_ROOT/[origin]/[flow id]/unit          - unit string of the flow's reference quantity
     APIv2_ROOT/[origin]/[flow id]/context       - the flow's full context as a list (or empty list)
     APIv2_ROOT/[origin]/[flow id]/targets       - return reference exchanges containing the flow
+
     APIv2_ROOT/[origin]/[context]/parent        - context's parent or none
     APIv2_ROOT/[origin]/[context]/sense	        - context's parent or none
     APIv2_ROOT/[origin]/[context]/subcontexts   - list of subcontexts
@@ -144,15 +146,16 @@ Only in cases where processes have a single designated reference exchange, may t
 
 All background aspect queries return lists of exchanges, either reference exchanges (value always 1) or dependent exchanges (normalized to reference exchange).  The "aspects" are as follows:
 
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/consumers	- [reference exchanges]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/consumers       - [reference exchanges]
     APIv2_ROOT/[origin]/[process id]/[ref flow]/dependencies    - [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/emissions	- [exchange values]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/emissions       - [exchange values]
     APIv2_ROOT/[origin]/[process id]/[ref flow]/cutoffs         - [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/lci		- [exchange values]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/lci             - [exchange values]
     APIv2_ROOT/[origin]/[process id]/[ref flow]/sys_lci         - [exchange values]	
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/foreground	- [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/ad		- [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/bf		- [exchange values]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/foreground      - [exchange values]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/ad              - [exchange values]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/bf              - [exchange values]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/lciv/[dep flow] - [float]
 
 Only flows terminated to *elementary* contexts are emissions; other flows (both unterminated and terminated to intermediate contexts) are "cutoffs".
 

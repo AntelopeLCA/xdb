@@ -89,12 +89,12 @@ class IndexAndOrder(object):
         self._s_hash = _hash_file(source)
         self._e_res = self._fa.create_resource(source)
 
+    def run(self):
         if self._check_ix() and self._check_bg():
             return
 
         # at least one is missing- so we need to instantiate the resource
 
-    def run(self):
         if is_7z(self._source):
             with tempfile.TemporaryDirectory() as dirpath:
                 extract_archive(self._source, outdir=dirpath)
@@ -186,16 +186,16 @@ class IndexAndOrder(object):
         self._b_res = None
         return False
 
-    def _clear_bg(self):
+    def clear_bg(self):
         if os.path.exists(self._tgt_bg):
             os.remove(self._tgt_bg)
         self._b_res = None
 
-    def _clear_ix(self):
+    def clear_ix(self):
         if os.path.exists(self._tgt_ix):
             os.remove(self._tgt_ix)
         self._i_res = None
-        self._clear_bg()
+        self.clear_bg()
 
     def configure(self, option, *args):
         """
@@ -219,10 +219,10 @@ class IndexAndOrder(object):
 
             # others-- e.g. changing references will require the index to be rewritten
             if option in ("set_reference", "unset_reference"):
-                self._clear_ix()
+                self.clear_ix()
 
             if option in ("preferred_provider", ):
-                self._clear_bg()
+                self.clear_bg()
 
             return True
         print('Configuration failed validation.')
