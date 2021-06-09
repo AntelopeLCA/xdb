@@ -1,0 +1,48 @@
+version: '3.8'
+
+volumes:
+  antelope-data:
+  antelope-data-fixture:
+  dagster-home:
+
+services:
+  dagit:
+    build:
+      context: .
+      target: dagster
+    working_dir: /project/etl
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+    ports:
+      - 3000:3000
+    volumes:
+      - ~/.aws:/root/.aws
+      - .:/project
+      - antelope-data:/antelope-data-full
+      - antelope-data-fixture:/antelope-data-fixture
+      - dagster-home:/opt/dagster/dagster_home
+    entrypoint: dagit
+    command: [ "-h", "0.0.0.0", "-w", "workspace.yaml" ]
+
+  api:
+    build:
+      context: .
+      target: api
+    working_dir: /project/api
+    environment:
+      LOGLEVEL: DEBUG
+    volumes:
+      - .:/project
+    ports:
+      - 8000:8000
+    entrypoint: uvicorn
+    command: api:app --host 0.0.0.0 --reload
+  
+  test:
+    build:
+      context: .
+      target: test
+    working_dir: /project
+    volumes:
+      - .:/project
+    entrypoint: /bin/bash -c "find . -name '*.py' | entr -r python3 -m pytest"
