@@ -1,7 +1,7 @@
-from .file_accessor import AwsFileAccessor
+from antelope_core import FileAccessor
 
 
-class AwsResourceLoader(AwsFileAccessor):
+class ResourceLoader(FileAccessor):
     """
     This class crawls the synced AWS directory and adds all the specified resources to the catalog provided as
     an input argument.
@@ -21,11 +21,13 @@ class AwsResourceLoader(AwsFileAccessor):
                 res = self.create_resource(source)
                 cat.add_resource(res)
                 res.check(cat)
-        cat.query(org).check_bg()
+        return cat.query(org).check_bg()
 
     def load_resources(self, cat, origin=None):
         if origin is None:
+            status = []
             for org in self.origins:
-                self._load_origin(cat, org)
+                status.append(self._load_origin(cat, org))
         else:
-            self._load_origin(cat, origin)
+            status = self._load_origin(cat, origin)
+        return status
