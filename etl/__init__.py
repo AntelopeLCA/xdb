@@ -1,11 +1,11 @@
 import os
 
-from antelope_core.catalog import StaticCatalog, LcCatalog
 from antelope_core import FileAccessor
+from antelope_core.catalog import StaticCatalog
 from patoolib import repack_archive
 
-from etl.index_and_order import is_7z, IndexAndOrder
 from etl.libs.resource_loader import ResourceLoader
+from manager.antelope_manager.static.index_and_order import is_7z, IndexAndOrder
 
 
 def de7zip(existing7z):
@@ -29,6 +29,8 @@ def de7zip(existing7z):
 
 
 CONFIG_ORIGINS = TEST_ORIGINS = ('ecoinvent.3.7.1.cutoff', )
+
+CAT_ROOT = os.environ.get('ANTELOPE_CATALOG_ROOT')  ## help??
 
 
 def preprocess_resources(data_root, origins):

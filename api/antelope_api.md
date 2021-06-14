@@ -58,7 +58,7 @@ Origin-specific queries:
     APIv2_ROOT/[origin]/count/flowables
 
     APIv2_ROOT/[origin]?synonyms=term      - list synonyms for the specified term
-    APIv2_ROOT/[origin]/contexts/[term]    - return canonical full context for term, as a list
+    APIv2_ROOT/[origin]/contexts/[term]    - return canonical full context for term
     APIv2_ROOT/[origin]?context=term       -  ""  ""
 
 Entity-specific queries:
@@ -147,14 +147,14 @@ Only in cases where processes have a single designated reference exchange, may t
 All background aspect queries return lists of exchanges, either reference exchanges (value always 1) or dependent exchanges (normalized to reference exchange).  The "aspects" are as follows:
 
     APIv2_ROOT/[origin]/[process id]/[ref flow]/consumers       - [reference exchanges]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/dependencies    - [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/emissions       - [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/cutoffs         - [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/lci             - [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/sys_lci         - [exchange values]	
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/dependencies    - [IntermediateExchanges]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/emissions       - [ElementaryExchanges]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/cutoffs         - [CutoffExchanges]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/lci             - [ElementaryExchanges] + [CutoffExchanges]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/sys_lci         - [ElementaryExchanges] + [CutoffExchanges]	
     APIv2_ROOT/[origin]/[process id]/[ref flow]/foreground      - [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/ad              - [exchange values]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/bf              - [exchange values]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/ad              - [IntermediateExchanges]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/bf              - [ElementaryExchanges] + [CutoffExchanges]
     APIv2_ROOT/[origin]/[process id]/[ref flow]/lciv/[dep flow] - [float]
 
 Only flows terminated to *elementary* contexts are emissions; other flows (both unterminated and terminated to intermediate contexts) are "cutoffs".

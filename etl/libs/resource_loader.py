@@ -1,3 +1,4 @@
+from antelope import BackgroundRequired
 from antelope_core import FileAccessor
 
 
@@ -21,7 +22,10 @@ class ResourceLoader(FileAccessor):
                 res = self.create_resource(source)
                 cat.add_resource(res)
                 res.check(cat)
-        return cat.query(org).check_bg()
+        try:
+            return cat.query(org).check_bg()
+        except BackgroundRequired:
+            return False
 
     def load_resources(self, cat, origin=None):
         if origin is None:
