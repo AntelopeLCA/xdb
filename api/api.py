@@ -2,9 +2,8 @@ from .models.response import *
 
 from etl import run_static_catalog, CONFIG_ORIGINS, CAT_ROOT
 
-from antelope import EntityNotFound, MultipleReferences, NoReference
+from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction
 
-from pydantic import ValidationError
 
 
 from fastapi import FastAPI, HTTPException
@@ -13,8 +12,6 @@ import logging
 import os
 
 import sys
-
-sys.setrecursionlimit(100)
 
 cat = run_static_catalog(CAT_ROOT)
 
@@ -72,7 +69,7 @@ def _search_entities(query, etype, count=50, **kwargs):
     except AttributeError:
         raise HTTPException(404, "Unknown entity type %s" % etype)
     for e in it:
-        if e.origin != query.origin:
+        if not e.origin.startswith(query.origin):  # return more-specific
             continue
         yield Entity.from_entity(e, **sargs)
         count -= 1
@@ -218,14 +215,23 @@ def get_unitary_reference(origin, entity):
         return Entity.from_entity(ent.reference_entity)
 
 
+@app.get("/{origin}/{entity}/unit")
+def get_unit(origin, entity):
+    return getattr(cat.query(origin).get(entity), 'unit')
+
+@app.get("/{origin}/{flow}/context", response_model=Context)
+def get_targets(origin, flow):
+    q = cat.query(origin)
+    f = q.get(flow)
+    cx = q.get_context(f.context)  # can't remember if flow is already context-equipped
+    return Context.from_context(cx)
+
+
 """TO WRITE:
 /{origin}/{entity}/properties
 /{origin}/{entity}/references
 
-/{origin}/{flow}/unit
-/{origin}/{flow}/context
 /{origin}/{flow}/location ???
-/{origin}/{flow}/targets
 
 /{origin}/{process}/exchanges
 /{origin}/{process}/exchange_values
@@ -233,3 +239,41 @@ def get_unitary_reference(origin, entity):
 
 
 """
+'''
+Routes that return exchanges
+'''
+
+@app.get("/{origin}/{flow}/targets", response_model=List[ReferenceExchange])
+def get_targets(origin, flow, direction: str=None):
+    if direction is not None:
+        direction = check_direction(direction)
+    return list(ReferenceExchange.from_exchange(x) for x in cat.query(origin).targets(flow, direction=direction))
+
+
+@app.get("/{origin}/{process}/exchanges", response_model=List[Exchange])
+def get_exchanges(origin, process, mode: str=None, flow: str=None):
+    assert mode in Exch_Modes, HTTPException(400, detail=f"Cannot understand mode {mode}")
+    p = cat.query(origin).get(process)
+    exch = p.exchanges(flow=flow)
+    return list(generate_pydantic_inventory(exch, mode=mode, values=False))
+
+
+@app.get("/{origin}/{process}/exchanges/{flow}", response_model=List[ExchangeValue])
+def get_exchange_values(origin, process, flow: str):
+    p = cat.query(origin).get(process)
+    exch = p.exchange_values(flow=flow)
+    return list(generate_pydantic_exchanges(exch))
+
+
+@app.get("/{origin}/{process}/inventory")
+def get_inventory(origin, process, ref_flow: str=None):
+    p = cat.query(origin).get(process)
+    try:
+        rx = p.reference(ref_flow)
+    except MultipleReferences:
+        raise HTTPException(404, f"Process {process} has multiple references")
+    except NoReference:
+        raise HTTPException(404, f"Process {process} has no references")
+
+    inv = p.inventory(rx)
+    return list(generate_pydantic_inventory(inv, values=True, ref_flow=rx.flow.external_ref))
