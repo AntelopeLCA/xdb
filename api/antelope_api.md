@@ -155,7 +155,7 @@ All background aspect queries return lists of exchanges, either reference exchan
     APIv2_ROOT/[origin]/[process id]/[ref flow]/foreground      - [exchange values]
     APIv2_ROOT/[origin]/[process id]/[ref flow]/ad              - [IntermediateExchanges]
     APIv2_ROOT/[origin]/[process id]/[ref flow]/bf              - [ElementaryExchanges] + [CutoffExchanges]
-    APIv2_ROOT/[origin]/[process id]/[ref flow]/lciv/[dep flow] - [float]
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/lci/[dep flow]  - [ElementaryExchanges]
 
 Only flows terminated to *elementary* contexts are emissions; other flows (both unterminated and terminated to intermediate contexts) are "cutoffs".
 

@@ -83,113 +83,74 @@ class Exchange(ResponseModel):
     process: str
     flow: str
     direction: str
+    termination: Optional[str]
+    type: str  # {'reference', 'self', 'node', 'context', 'cutoff'}, per
     comment: Optional[str]
     str: str
 
     @classmethod
-    def from_exchange(cls, x):
+    def from_exchange(cls, x, **kwargs):
+        if x.type == 'context':
+            term = x.termination.name
+        else:
+            term = x.termination
         return cls(origin=x.process.origin, process=x.process.external_ref, flow=x.flow.external_ref,
-                   direction=x.direction, comment=x.comment, str=str(x))
+                   direction=x.direction, termination=term, type=x.type, comment=x.comment, str=str(x), **kwargs)
 
 
 class ReferenceExchange(Exchange):
     is_reference = True
+    termination: None
 
 
 class ReferenceValue(ReferenceExchange):
     value = float
 
     @classmethod
-    def from_exchange(cls, x):
-        return cls(origin=x.process.origin, process=x.process.external_ref, flow=x.flow.external_ref,
-                   direction=x.direction, comment=x.comment, value=x.value, str=str(x))
+    def from_rx(cls, x):
+        return cls.from_exchange(x, value=x.value)
 
 
-class CutoffExchange(Exchange):
-    pass
-
-class ExchangeValue(CutoffExchange):
+class ExchangeValue(Exchange):
     """
     dict mapping reference flows to allocated value
     """
     values: Dict
     uncertainty: Optional[Dict]
 
-
-class InteriorExchange(CutoffExchange):
-    """
-    Termination must be an external ref for a process
-    """
-    termination: str = ''
+    @classmethod
+    def from_ev(cls, x):
+        return cls.from_exchange(x, values=x.values)
 
 
-class InteriorExchangeValue(InteriorExchange):
-    """
-    dict mapping reference flows to allocated value
-    """
-    values: Dict
+class AllocatedExchange(Exchange):
+    ref_flow: str
+    value: float
     uncertainty: Optional[Dict]
 
+    @classmethod
+    def from_inv(cls, x, ref_flow:str):
+        return cls.from_exchange(x, ref_flow=ref_flow, value=x.value)
 
-class ExteriorExchange(CutoffExchange):
+
+
+def generate_pydantic_exchanges(xs, type=None):
     """
-    Termination must be a context-- if the context is elementary, then so is the exchange
+
+    :param xs: iterable of exchanges
+    :param type: [None] whether to filter the exchanges by type. could be one of None, 'reference', 'self', 'node',
+    'context', 'cutoff'
+    :return:
     """
-    context: str = ''
-
-
-class ExteriorExchangeValue(ExteriorExchange):
-    """
-    dict mapping reference flows to allocated value
-    """
-    values: Dict
-    uncertainty: Optional[Dict]
-
-
-def generate_pydantic_exchanges(xs):
     for x in xs:
+        if type and (type != x.type):
+            continue
         if x.is_reference:
-            yield ReferenceValue.from_exchange(x)
+            yield ReferenceExchange.from_exchange(x)
             continue
 
-        xdict = {
-            'origin': x.process.origin,
-            'process': x.process.external_ref,
-            'flow': x.flow.external_ref,
-            'direction': x.direction,
-            'comment': x.comment,
-            'str': str(x),
-            'type': x.type,
-            'values': x.value  # you have to be dealing with the real shit
-        }
-        if x.type in ('self', 'node'):
-            xdict['termination'] = x.termination
-            yield InteriorExchangeValue(**xdict)
-
-        elif x.type in ('context', 'elementary'):
-            xdict['context'] = x.termination.name
-            yield ExteriorExchangeValue(**xdict)
-
         else:
-            yield ExchangeValue(**xdict)
-
-
-class CutoffAllocatedExchange(CutoffExchange):
-    ref_flow: str
-    value: float
-    uncertainty: Optional[Dict]
-
-
-class InteriorAllocatedExchange(InteriorExchange):
-    ref_flow: str
-    value: float
-    uncertainty: Optional[Dict]
-
-
-class ExteriorAllocatedExchange(ExteriorExchange):
-    ref_flow: str
-    value: float
-    uncertainty: Optional[Dict]
+            yield Exchange.from_exchange(x)
 
 
 Exch_Modes = (None, 'reference', 'interior', 'exterior', 'cutoff')
@@ -222,48 +183,20 @@ def generate_pydantic_inventory(xs, mode=None, values=False, ref_flow=None):
             if mode and (mode != 'reference'):
                 continue
             if values:
-                yield ReferenceValue.from_exchange(x)
+                yield ReferenceValue.from_rx(x)
             else:
                 yield ReferenceExchange.from_exchange(x)
             continue
 
-        xdict = {
-            'origin': x.process.origin,
-            'process': x.process.external_ref,
-            'flow': x.flow.external_ref,
-            'direction': x.direction,
-            'comment': x.comment,
-            'str': str(x),
-            'type': x.type
-        }
-        if values:
-            xdict.update(ref_flow=ref_flow, value=x.value)
-
-        if x.type in ('self', 'node'):
-            if mode and (mode != 'interior'):
-                continue
-
-            xdict['termination'] = x.termination
-            if values:
-                yield InteriorAllocatedExchange(**xdict)
-            else:
-                yield InteriorExchange(**xdict)
-
-        elif x.type in ('context', 'elementary'):
-            if mode and (mode != 'exterior'):
-                continue
-
-            xdict['context'] = x.termination.name
-            if values:
-                yield ExteriorAllocatedExchange(**xdict)
-            else:
-                yield ExteriorExchange(**xdict)
-
         else:
-            if mode and (mode != 'cutoff'):
-                continue
+            if x.type in ('self', 'node'):
+                if mode and (mode != 'interior'):
+                    continue
+            elif x.type in ('context', 'elementary'):
+                if mode and (mode != 'exterior'):
+                    continue
+            elif x.type == 'cutoff':
+                if mode and (mode != 'cutoff'):
+                    continue
 
-            if values:
-                yield CutoffAllocatedExchange(**xdict)
-            else:
-                yield CutoffExchange(**xdict)
+            yield AllocatedExchange.from_inv(x, ref_flow=ref_flow)

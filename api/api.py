@@ -2,7 +2,7 @@ from .models.response import *
 
 from etl import run_static_catalog, CONFIG_ORIGINS, CAT_ROOT
 
-from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction
+from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES
 
 
 
@@ -215,6 +215,15 @@ def get_unitary_reference(origin, entity):
         return Entity.from_entity(ent.reference_entity)
 
 
+@app.get("/{origin}/{entity}/references")
+def get_references(origin, entity):
+    ent = cat.query(origin).get(entity)
+    if ent.entity_type == 'process':
+        return list(ReferenceValue.from_rx(rx) for rx in ent.references())
+    else:
+        return [get_unitary_reference(origin, entity)]
+
+
 @app.get("/{origin}/{entity}/unit")
 def get_unit(origin, entity):
     return getattr(cat.query(origin).get(entity), 'unit')
@@ -229,14 +238,10 @@ def get_targets(origin, flow):
 
 """TO WRITE:
 /{origin}/{entity}/properties
-/{origin}/{entity}/references
 
 /{origin}/{flow}/location ???
 
-/{origin}/{process}/exchanges
-/{origin}/{process}/exchange_values
-/{origin}/{process}/inventory
-
+/{origin}/{flow}/emitters
 
 """
 '''
@@ -251,18 +256,19 @@ def get_targets(origin, flow, direction: str=None):
 
 
 @app.get("/{origin}/{process}/exchanges", response_model=List[Exchange])
-def get_exchanges(origin, process, mode: str=None, flow: str=None):
-    assert mode in Exch_Modes, HTTPException(400, detail=f"Cannot understand mode {mode}")
+def get_exchanges(origin, process, type: str=None, flow: str=None):
+    if type and (type not in EXCHANGE_TYPES):
+        raise HTTPException(400, detail=f"Cannot understand type {type}")
     p = cat.query(origin).get(process)
     exch = p.exchanges(flow=flow)
-    return list(generate_pydantic_inventory(exch, mode=mode, values=False))
+    return list(generate_pydantic_exchanges(exch, type=type))
 
 
 @app.get("/{origin}/{process}/exchanges/{flow}", response_model=List[ExchangeValue])
 def get_exchange_values(origin, process, flow: str):
     p = cat.query(origin).get(process)
     exch = p.exchange_values(flow=flow)
-    return list(generate_pydantic_exchanges(exch))
+    return list(ExchangeValue.from_ev(x) for x in exch)
 
 
 @app.get("/{origin}/{process}/inventory")
@@ -276,4 +282,102 @@ def get_inventory(origin, process, ref_flow: str=None):
         raise HTTPException(404, f"Process {process} has no references")
 
     inv = p.inventory(rx)
-    return list(generate_pydantic_inventory(inv, values=True, ref_flow=rx.flow.external_ref))
+    return list(AllocatedExchange.from_inv(x, rx.flow.external_ref) for x in inv)
+
+
+'''
+Routes that depend on topological ordering
+
+/{origin}/foreground  [ReferenceExchange]
+/{origin}/background  [ReferenceExchange]
+/{origin}/interior    [ReferenceExchange]
+/{origin}/exterior    [ExteriorFlow]
+
+/{origin}/{process}/{ref_flow}/dependencies  [AllocatedExchange]; term is node
+/{origin}/{process}/{ref_flow}/emissions     [AllocatedExchange]; term is context
+## fair question whether cutoffs should include non-elementary contexts-
+## related: are cutoffs a subset of emissions, disjoint, or intersect?
+Standard usage: "emissions" are elementary, "cutoffs" are dangling. Problem is,
+that predicates the response on having an LciaEngine to resolve the contexts, and 
+present Background impl does not: it asks its local _index. now we could just give
+every term manager the set of default contexts... what other differences exist? 
+/{origin}/{process}/{ref_flow}/cutoffs       [AllocatedExchange]; term is None 
+
+/{origin}/{process}/{ref_flow}/consumers    [ReferenceExchange]
+/{origin}/{process}/{ref_flow}/foreground   [one ReferenceExchange followed by AllocatedExchanges]
+
+/{origin}/{process}/{ref_flow}/ad           [AllocatedExchange]
+/{origin}/{process}/{ref_flow}/bf           [AllocatedExchange]
+/{origin}/{process}/{ref_flow}/lci            [AllocatedExchange]
+/{origin}/{process}/{ref_flow}/lci/{ext_flow} [AllocatedExchange]
+
+/{origin}/{process}/{ref_flow}/syslci [POST]  [AllocatedExchange]
+
+'''
+
+@app.get('/{origin}/{process}/{ref_flow}/ad', response_model=List[AllocatedExchange])
+@app.get('/{origin}/{process}/ad', response_model=List[AllocatedExchange])
+def get_ad(origin: str, process: str, ref_flow: str=None):
+    p = cat.query(origin).get(process)
+    rf = p.reference(ref_flow)
+    return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.ad(ref_flow=rf))
+
+
+@app.get('/{origin}/{process}/{ref_flow}/bf', response_model=List[AllocatedExchange])
+@app.get('/{origin}/{process}/bf', response_model=List[AllocatedExchange])
+def get_bf(origin: str, process: str, ref_flow: str=None):
+    p = cat.query(origin).get(process)
+    rf = p.reference(ref_flow)
+    return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.bf(ref_flow=rf))
+
+
+@app.get('/{origin}/{process}/{ref_flow}/dependencies', response_model=List[AllocatedExchange])
+@app.get('/{origin}/{process}/dependencies', response_model=List[AllocatedExchange])
+def get_dependencies(origin: str, process: str, ref_flow: str=None):
+    p = cat.query(origin).get(process)
+    rf = p.reference(ref_flow)
+    return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.dependencies(ref_flow=rf))
+
+
+@app.get('/{origin}/{process}/{ref_flow}/emissions', response_model=List[AllocatedExchange])
+@app.get('/{origin}/{process}/emissions', response_model=List[AllocatedExchange])
+def get_emissions(origin: str, process: str, ref_flow: str=None):
+    p = cat.query(origin).get(process)
+    rf = p.reference(ref_flow)
+    return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.emissions(ref_flow=rf))
+
+
+@app.get('/{origin}/{process}/{ref_flow}/cutoffs', response_model=List[AllocatedExchange])
+@app.get('/{origin}/{process}/cutoffs', response_model=List[AllocatedExchange])
+def get_cutoffs(origin: str, process: str, ref_flow: str=None):
+    p = cat.query(origin).get(process)
+    rf = p.reference(ref_flow)
+    return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.cutoffs(ref_flow=rf))
+
+
+@app.get('/{origin}/{process}/{ref_flow}/lci', response_model=List[AllocatedExchange])
+@app.get('/{origin}/{process}/lci', response_model=List[AllocatedExchange])
+def get_lci(origin: str, process: str, ref_flow: str=None):
+    p = cat.query(origin).get(process)
+    rf = p.reference(ref_flow)
+    return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.lci(ref_flow=rf))
+
+
+@app.get('/{origin}/{process}/{ref_flow}/consumers', response_model=List[AllocatedExchange])
+@app.get('/{origin}/{process}/consumers', response_model=List[AllocatedExchange])
+def get_consumers(origin: str, process: str, ref_flow: str=None):
+    p = cat.query(origin).get(process)
+    rf = p.reference(ref_flow)
+    return list(ReferenceExchange.from_exchange(x) for x in p.consumers(ref_flow=rf))
+
+
+@app.get('/{origin}/{process}/{ref_flow}/foreground', response_model=List[ExchangeValue])
+@app.get('/{origin}/{process}/foreground', response_model=List[ExchangeValue])
+def get_foreground(origin: str, process: str, ref_flow: str=None):
+    p = cat.query(origin).get(process)
+    rf = p.reference(ref_flow)
+    fg = p.foreground(ref_flow=rf)
+    rtn = [ReferenceValue.from_rx(next(fg))]
+    for dx in fg:
+        rtn.append(ExchangeValue.from_ev(dx))
+    return rtn
