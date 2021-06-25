@@ -57,10 +57,6 @@ Origin-specific queries:
     APIv2_ROOT/[origin]/count/contexts
     APIv2_ROOT/[origin]/count/flowables
 
-    APIv2_ROOT/[origin]?synonyms=term      - list synonyms for the specified term
-    APIv2_ROOT/[origin]/contexts/[term]    - return canonical full context for term
-    APIv2_ROOT/[origin]?context=term       -  ""  ""
-
 Entity-specific queries:
 
     APIv2_ROOT/[origin]/[entity id]             - return a thorough description of the entity
@@ -159,76 +155,64 @@ All background aspect queries return lists of exchanges, either reference exchan
 
 Only flows terminated to *elementary* contexts are emissions; other flows (both unterminated and terminated to intermediate contexts) are "cutoffs".
 
+### Quantity queries
+
+There are two layers to the quantity engine: the native layer, which includes only strict mappings and does not perform 
+any reconciliation, and the qdb layer, which does reconcile the native data with a set of canonical terms.  The
+native-layer queries are answered by the individual archives and their TermManagers, while the qdb-layer queries
+are answered by the catalog's LciaEngine.  The qdb layer is also (someday) going to be implemented by a stand-alone
+qdb which implements a graph database.  
+
+Some things worth noting: 
+ * The native-layer quantity queries are a subset of the full quantity interface, i.e. some queries only make sense 
+ in the context of reconciliation across data sources (for instance, the factors POST method).
+ * The native layer is nominally read-only (comes from a static XDB data source), but the qdb layer can grow
+ * Identification of elementary flows is not reliable for native queries, only for qdb queries (because it depends
+ on reconciling contexts)
+
+**Native-layer quantity queries**
+
+    APIv2_ROOT/[origin]/synonyms?term=term      - list synonyms for the specified term
+    APIv2_ROOT/[origin]/contexts/[term]         - return canonical full context for term
+
+    APIv2_ROOT/[origin]/[flow id]/profile       - list characterizations for the flow
+    APIv2_ROOT/[origin]/[flow id]/cf/[quantity id] - return the characterization value as a float (or 0.0)
+
+    APIv2_ROOT/[origin]/[quantity id]/norm      - return a normalization dict
+    APIv2_ROOT/[origin]/[quantity id]/factors   - list characterizations for the quantity
+    APIv2_ROOT/[origin]/[quantity id]/convert/[flow id] - return a QuantityConversion
+    APIv2_ROOT/[origin]/[quantity id]/convert/[flowable]/[ref quantity] - return a QuantityConversion
+    
+    APIv2_ROOT/[origin]/[quantity id]/lcia {POST} - perform LCIA on POSTDATA = list of exchange refs
+
+
 ## Summary of return types:
 
- * String
- * Integer
- * Float
- * EntityRecord - origin, entity ID, entity type, name
- * RichEntityRecord - EntityRecord + search key, search value (*for use in answering a search query*)
- * Context - name, parent, sense
- * Reference Exchange - origin, process, flow, direction, locale[, comment]
- * Exchange - origin, process, flow, termination, locale[, comment]
- * ExchangeValue - Exchange + value
- * ExteriorFlow - origin, flow, direction, termination
+Meta-types
+ * ServerMeta - info about the xdb
+ * OriginMeta - available / authorized interfaces
+ * OriginCount - maybe part of OriginMeta?
+
+Basic/Index types
+ * Entity - origin, entity ID, entity type, properties
+ * FlowEntity - Entity + context, locale, referenceQuantity
+ * Context - name, parent, elementary, sense, subcontexts
+
+Exchange/Background types
+ * ExteriorFlow - origin, flow, direction (W/R/T interior), context
+ * Exchange - origin, process, flow, direction, termination, type, comment, str
+ * ReferenceExchange - reference=True, termination=None
+ * ReferenceValue - ReferenceExchange + value
+ * ExchangeValue - Exchange + multiple values, one per reference, + uncertainty
+ * AllocatedExchange - Exchange + ref_flow + value + uncertainty
+
+Quantity types
+ * Characterization - origin, flowable, ref quantity, query quantity, context, dict of locale:value
+ * Normalization - origin, quantity, dict of locale: value
+ * QuantityConversion - basically a QRResult: origin, flowable, ref qty, q qty, context, locale, value
+ * LciaDetailedResult
+ * LciaAggregation
+ * LciaResult
 
 I think that's all of them.
 
-## A key question for Return Data
-
-For these queries, I have the decision of whether and how to state the entity's origin in the response.  The client must know the origin because the origin is part of the request-- thus re-stating it wastes bandwidth? or is it not a concern bc of gzip?
-
-Query: `APIv2_ROOT/my.data.source/processes?name=aluminium`
-
-Option 1: explicit, full:
-
-    [
-      {
-        "origin": "my.data.source",
-        "entityId": "4xad",
-        "entityType": "process",
-        "name": "Aluminium casting plant"
-      },
-      {
-        "origin": "my.data.source",
-        "entityId": "4xae",
-        "entityType": "process",
-        "name": "Aluminium smelting plant"
-      },
-      ...
-    ]
-
-Option 1: explicit, nested
-
-    {
-      "origin": "my.data.source",
-      "processes": [
-        {
-          "entityId": "4xad",
-          "entityType": "process",
-          "name": "Aluminium casting plant"
-        },
-        {
-          "entityId": "4xae",
-          "entityType": "process",
-          "name": "Aluminium smelting plant"
-        },
-        ....
-      ]
-    }
-
-Option 3: unspecified (implicit, most compact):
-
-    [
-      {
-        "entityId": "4xad",
-        "entityType": "process",
-        "name": "Aluminium casting plant"
-      },
-      {
-        "entityId": "4xae",
-        "entityType": "process",
-        "name": "Aluminium smelting plant"
-      },
-      ...
-    ]

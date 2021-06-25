@@ -2,16 +2,13 @@ from .models.response import *
 
 from etl import run_static_catalog, CONFIG_ORIGINS, CAT_ROOT
 
-from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES
-
-
+from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired
 
 from fastapi import FastAPI, HTTPException
 from typing import List
 import logging
 import os
 
-import sys
 
 cat = run_static_catalog(CAT_ROOT)
 
@@ -35,29 +32,80 @@ def get_server_meta():
     return sm
 
 
+def _get_authorized_query(origin):
+    """
+    Somehow we need / want to implement a sort of mapping where detailed origins are presented as higher-level
+    origins for external query. For instance, an XDB may have the following origins on hand:
+      - lcacommons.uslci.fy2020.q3
+      - lcacommons.uslci.fy2020.q4
+      - lcacommons.uslci.fy2021.q1
+    but we would like to configure only one of them to be the origin of record in response to 'lcacommons.uslci'
+    queries.  Ultimately this may depend on the user's authorization-- certain users may have access to all the
+    different version, but others will only get 'lcacommons.uslci'
+
+    We also need to decide whether to "masquerade" the true origin or not, i.e. if a user is authorized for
+    'lcacommons.uslci' and the origin of record is 'lcacommons.uslci.fy2021.q1', do the queries include the true
+    origin or the authorized one? I would tend toward the true origin.
+
+    The point is, this auth design question needs to be answered before the implementation is written.
+    :param origin:
+    :return:
+    """
+    pass
+
+
+
 @app.get("/origins", response_model=List[str])
 def get_origins():
     return [org for org in cat.origins if org in CONFIG_ORIGINS]
 
 
-@app.get("/{origin}/", response_model=OriginMeta)
-def get_origin(origin: str):
+def _origin_meta(origin):
     return {
         "origin": origin,
         "interfaces": list(set([k.split(':')[1] for k in cat.interfaces if k.startswith(origin)]))
     }
 
 
-@app.get("/{origin}/count")
-def get_count(origin: str):
-    q = cat.query(origin)
-    return {
-        'processes': q.count('process'),
-        'flows': q.count('flow'),
-        'quantities': q.count('quantity'),
-        'flowables': len(list(q.flowables())),
-        'contexts': len(list(q.contexts()))
-    }
+@app.get("/{origin}/", response_model=List[OriginMeta])
+def get_origin(origin: str):
+    """
+    TODO: reconcile the AVAILABLE origins with the CONFIGURED origins and the AUTHORIZED origins
+    :param origin:
+    :return:
+    """
+    return [_origin_meta(org) for org in cat.origins if org.startswith(origin)]
+
+
+@app.get("/{origin}/synonyms", response_model=List[str])
+def get_synonyms(origin:str, term: str):
+    return cat.query(origin).synonyms(term)
+
+
+@app.get("/{origin}/count", response_model=List[OriginCount])
+def get_origin(origin:str):
+    return list(_get_origin_counts(origin))
+
+
+
+def _get_origin_counts(origin: str):
+    for org in cat.origins:
+        if not org.startswith(origin):
+            continue
+        try:
+            q = cat.query(org)
+            yield {
+                'origin': org,
+                'count': {
+                    'processes': q.count('process'),
+                    'flows': q.count('flow'),
+                    'quantities': q.count('quantity'),
+                    'flowables': len(list(q.flowables())),
+                    'contexts': len(list(q.contexts()))
+                }
+            }
+        except IndexRequired:
+            pass
 
 
 def _search_entities(query, etype, count=50, **kwargs):
@@ -71,18 +119,21 @@ def _search_entities(query, etype, count=50, **kwargs):
     for e in it:
         if not e.origin.startswith(query.origin):  # return more-specific
             continue
-        yield Entity.from_entity(e, **sargs)
+        if etype == 'flows':
+            yield FlowEntity.from_flow(e, **sargs)
+        else:
+            yield Entity.from_entity(e, **sargs)
         count -= 1
         if count <= 0:
             break
 
 
 @app.get("/{origin}/processes") # , response_model=List[Entity])
-async def search_processes(origin:str,
-                           name: Optional[str]=None,
-                           classifications: Optional[str]=None,
-                           spatialscope: Optional[str]=None,
-                           comment: Optional[str]=None):
+def search_processes(origin:str,
+                     name: Optional[str]=None,
+                     classifications: Optional[str]=None,
+                     spatialscope: Optional[str]=None,
+                     comment: Optional[str]=None):
     query = cat.query(origin)
     kwargs = {'name': name,
               'classifications': classifications,
@@ -90,7 +141,7 @@ async def search_processes(origin:str,
               'comment': comment}
     return list(_search_entities(query, 'processes', **kwargs))
 
-@app.get("/{origin}/flows", response_model=List[Entity])
+@app.get("/{origin}/flows", response_model=List[FlowEntity])
 def search_flows(origin:str,
                  name: Optional[str]=None,
                  casnumber: Optional[str]=None):
@@ -109,6 +160,7 @@ def search_quantities(origin:str,
     return list(_search_entities(query, 'quantities', **kwargs))
 
 @app.get("/{origin}/lcia_methods", response_model=List[Entity])
+@app.get("/{origin}/lciamethods", response_model=List[Entity])
 def search_lcia_methods(origin:str,
                         name: Optional[str]=None,
                         referenceunit: Optional[str]=None,
@@ -342,6 +394,14 @@ def get_dependencies(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/{ref_flow}/emissions', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/emissions', response_model=List[AllocatedExchange])
 def get_emissions(origin: str, process: str, ref_flow: str=None):
+    """
+    This returns a list of elementary exchanges from the process+reference flow pair.
+    :param origin:
+    :param process:
+    :param ref_flow:
+    :return:
+    """
+
     p = cat.query(origin).get(process)
     rf = p.reference(ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.emissions(ref_flow=rf))
@@ -381,3 +441,39 @@ def get_foreground(origin: str, process: str, ref_flow: str=None):
     for dx in fg:
         rtn.append(ExchangeValue.from_ev(dx))
     return rtn
+
+
+'''
+Now, a source-specific quantity interface, which is necessary to expose non-harmonized quantity data from 
+xdb data sources.
+
+The main characteristic of these routes is that they use each archive's term manager instead of the catalog's quantity
+manager. 
+
+Applicable routes:
+
+    Origin-specific (implemented above)
+    APIv2_ROOT/[origin]/synonyms?term=term      - list synonyms for the specified term
+    APIv2_ROOT/[origin]/contexts/[term]         - return canonical full context for term
+
+    Entity-specific
+    APIv2_ROOT/[origin]/[flow id]/profile       - list characterizations for the flow
+    APIv2_ROOT/[origin]/[flow id]/cf/[quantity id] - return the characterization value as a float (or 0.0)
+
+    APIv2_ROOT/[origin]/[quantity id]/norm      - return a normalization dict
+    APIv2_ROOT/[origin]/[quantity id]/factors   - list characterizations for the quantity
+    APIv2_ROOT/[origin]/[quantity id]/convert/[flow id] - return a QuantityConversion
+    APIv2_ROOT/[origin]/[quantity id]/convert/[flowable]/[ref quantity] - return a QuantityConversion
+    
+    APIv2_ROOT/[origin]/[quantity id]/lcia {POST} - perform LCIA on POSTDATA = list of exchange refs
+
+'''
+
+@app.get('/{origin}/{flow_id}/profile', response_model=List[Characterization])
+def get_flow_profile(origin: str, flow_id: str, quantity: str=None, context: str=None):
+    f = cat.query(origin).get(flow_id)
+    if quantity is not None:
+        quantity = cat.query(origin).get(quantity)
+    if context is not None:
+        context = cat.query(origin).get_context(context)
+    return [Characterization.from_cf(cf) for cf in f.profile(quantity=quantity, context=context)]

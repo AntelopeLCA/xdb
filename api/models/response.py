@@ -34,6 +34,11 @@ class OriginMeta(ResponseModel):
     '''
 
 
+class OriginCount(ResponseModel):
+    origin: str
+    count: dict
+
+
 class Entity(ResponseModel):
     origin: str
     entity_id: str
@@ -48,6 +53,30 @@ class Entity(ResponseModel):
                   properties=dict())
 
         obj.properties['name'] = entity.name
+
+        for key, val in kwargs.items():
+            obj.properties[key] = entity[key]
+        return obj
+
+
+class FlowEntity(Entity):
+    """
+    Open questions: should context and locale be properties? or attributes? should referenceQuantity be an attribute?
+    """
+    context: List[str]
+    locale: str
+
+    @classmethod
+    def from_flow(cls, entity, **kwargs):
+        obj = cls(origin=entity.origin,
+                  entity_id=entity.external_ref,
+                  entity_type=entity.entity_type,
+                  context=list(entity.context),
+                  locale=entity.locale,
+                  properties=dict())
+
+        obj.properties['name'] = entity.name
+        obj.properties[entity.reference_field] = entity.reference_entity.external_ref
 
         for key, val in kwargs.items():
             obj.properties[key] = entity[key]
@@ -79,6 +108,9 @@ class ExteriorFlow(ResponseModel):
 
 
 class Exchange(ResponseModel):
+    """
+    Do we need to add locale??
+    """
     origin: str
     process: str
     flow: str
@@ -158,6 +190,7 @@ Exch_Modes = (None, 'reference', 'interior', 'exterior', 'cutoff')
 
 def generate_pydantic_inventory(xs, mode=None, values=False, ref_flow=None):
     """
+    Not currently used
 
     :param xs: iterable of exchanges
     :param mode: [None] whether to filter the exchanges by type. could be one of:
@@ -200,3 +233,79 @@ def generate_pydantic_inventory(xs, mode=None, values=False, ref_flow=None):
                     continue
 
             yield AllocatedExchange.from_inv(x, ref_flow=ref_flow)
+
+
+"""
+Quantity Types
+"""
+class Characterization(ResponseModel):
+    origin: str
+    flowable: str
+    ref_quantity: str
+    ref_unit: str
+    query_quantity: str
+    query_unit: str
+    context: List[str]
+    value: Dict
+
+    @classmethod
+    def from_cf(cls, cf):
+        ch = cls.null(cf)
+        for loc in cf.locations:
+            ch.value[loc] = cf[loc]
+        return ch
+
+    @classmethod
+    def null(cls, cf):
+        ch =  cls(origin=cf.origin, flowable=cf.flowable,
+                  ref_quantity=cf.ref_quantity.external_ref, ref_unit=cf.ref_quantity.unit,
+                  query_quantity=cf.quantity.external_ef, query_unit=cf.quantity.unit,
+                  context=list(cf.context), value=dict())
+        return ch
+
+
+class Normalizations(ResponseModel):
+    """
+    This is written to replicate the normalisation data stored per-method in OpenLCA JSON-LD format
+    """
+    origin: str
+    quantity: str
+    norm: Dict
+    weight: Dict
+
+    @classmethod
+    def from_q(cls, q):
+        n = cls(origin=q.origin, quantity=q.external_ref, norm=dict(), weight=dict())
+        if q.has_property('normSets'):
+            sets = q['normSets']
+            try:
+                norms = q['normalisationFactors']
+            except KeyError:
+                norms = [0.0]*len(sets)
+            try:
+                wgts = q['weightingFactors']
+            except KeyError:
+                wgts = [0.0]*len(sets)
+            for i, set in sets:
+                n.norm[set] = norms[i]
+                n.weight[set] = wgts[i]
+        return n
+
+
+class QuantityConversion(ResponseModel):
+    """
+    Technically, a quantity conversion can include chained QR Results, but we are flattening it (for now)
+    """
+    origin: str
+    flowable: str
+    ref_quantity: str
+    query_quantity: str
+    context: List[str]
+    locale: str
+    value: float
+
+    @classmethod
+    def from_qrresult(cls, qrr):
+        return cls(origin=qrr.origin, flowable=qrr.flowable,
+                   ref_quantity=qrr.ref.external_ref, query_quantity=qrr.query.external_ref,
+                   context=list(qrr.context), locale=qrr.locale, value=qrr.value)

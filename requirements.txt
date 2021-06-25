@@ -1,6 +1,7 @@
 pydantic>=1.8.2
 patool>=1.12
 python-magic>=0.4.22
+fastapi>=0.65.2
 git+git://github.com/AntelopeLCA/core@virtualize#egg=antelope_core
 git+git://github.com/AntelopeLCA/antelope@virtualize#egg=antelope_interface
 git+git://github.com/AntelopeLCA/background@master#egg=antelope_background
