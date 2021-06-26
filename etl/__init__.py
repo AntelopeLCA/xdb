@@ -1,10 +1,10 @@
 import os
 
 from antelope_core import FileAccessor
-from antelope_core.catalog import StaticCatalog
 from patoolib import repack_archive
 
-from etl.libs.resource_loader import ResourceLoader
+from etl.solids.run_static_catalog import run_static_catalog
+
 from manager.antelope_manager.static.index_and_order import is_7z, IndexAndOrder
 
 
@@ -43,10 +43,3 @@ def preprocess_resources(data_root, origins):
         aio.run()
 
 
-def run_static_catalog(cat_root):
-    s_cat = StaticCatalog(cat_root)
-    for origin in CONFIG_ORIGINS:
-        for iface in('exchange', 'index', 'background'):
-            assert ':'.join([origin, iface]) in s_cat.interfaces
-
-    return s_cat  # use this to answer all HTTP queries

@@ -1,5 +1,12 @@
+from antelope_core import add_antelope_providers
+import sys
+sys.path.append('/data/GitHub/Antelope/olca-data')
+import antelope_olca
 from antelope_core.catalog import StaticCatalog
 from dagster import solid, InputDefinition, OutputDefinition, String, List
+
+
+add_antelope_providers(antelope_olca)
 
 
 @solid(input_defs=[InputDefinition(name="cat_root",dagster_type=String), InputDefinition(name="config_origins", dagster_type=List[String])],

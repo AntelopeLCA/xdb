@@ -17,7 +17,7 @@ class ResourceLoader(FileAccessor):
         :param org:
         :return:
         """
-        for iface in ('exchange', 'index', 'background'):
+        for iface in ('exchange', 'index', 'background', 'quantity'):
             for i, source in enumerate(self.gen_sources(org, iface)):
                 res = self.create_resource(source)
                 cat.add_resource(res)

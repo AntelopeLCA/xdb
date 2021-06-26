@@ -10,7 +10,7 @@ import logging
 import os
 
 
-cat = run_static_catalog(CAT_ROOT)
+cat = run_static_catalog(CAT_ROOT, list(CONFIG_ORIGINS))
 
 _ETYPES = ('processes', 'flows', 'quantities', 'lcia_methods', 'contexts')
 
@@ -477,3 +477,9 @@ def get_flow_profile(origin: str, flow_id: str, quantity: str=None, context: str
     if context is not None:
         context = cat.query(origin).get_context(context)
     return [Characterization.from_cf(cf) for cf in f.profile(quantity=quantity, context=context)]
+
+
+@app.get('/{origin}/{quantity_id}/norm', response_model=Normalizations)
+def get_quantity_norms(origin:str, quantity_id: str):
+    q = cat.query(origin).get(quantity_id)
+    return Normalizations.from_q(q)
