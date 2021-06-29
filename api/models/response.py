@@ -101,10 +101,15 @@ class Context(ResponseModel):
 
 
 class ExteriorFlow(ResponseModel):
+    """
+    Do we really need both an ExteriorFlow model and a FlowSpec model? this one has direction, and origin+flow;
+    that one has flowable+ref entity, and locale (but we added locale)
+    """
     origin: str
     flow: str
     direction: str  # antelope_interface specifies the direction as w/r/t/ context, as in "Input" "to air". This SEEMS WRONG.
     context: str
+    locale: Optional[str] = 'GLO'  # ???
 
 
 class Exchange(ResponseModel):
@@ -309,3 +314,103 @@ class QuantityConversion(ResponseModel):
         return cls(origin=qrr.origin, flowable=qrr.flowable,
                    ref_quantity=qrr.ref.external_ref, query_quantity=qrr.query.external_ref,
                    context=list(qrr.context), locale=qrr.locale, value=qrr.value)
+
+
+def _context_to_str(cx):
+    if isinstance(cx, tuple):
+        if len(cx) == 0:
+            context = None
+        else:
+            context = str(cx[-1])
+    elif hasattr(cx, 'entity_type') and cx.entity_type == 'context':
+        context = cx.name
+    elif cx is None:
+        context = None
+    else:
+        raise TypeError('%s: Unrecognized context type %s' % (cx, type(cx)))
+    return context
+
+
+class FlowSpec(ResponseModel):
+    flow: Optional[str]
+    flowable: str
+    ref_quantity: str
+    context: Optional[str]
+    locale: str
+
+    @classmethod
+    def from_flow(cls, flow):
+        context = _context_to_str(flow.context)
+        return cls(flow=flow.external_ref, flowable=flow.name, ref_quantity=flow.reference_entity.external_ref,
+                   context=context, locale=flow.locale)
+
+    @classmethod
+    def from_exchange(cls, x, locale=None):
+        if x.type in ('node', 'self'):
+            cx = _context_to_str(x.flow.context)
+        elif x.type == 'context':
+            cx = _context_to_str(x.termination)
+        elif x.type in ('reference', 'cutoff'):
+            cx = None
+        else:
+            raise TypeError('%s\nUnknown exchange type %s' % (x, x.type))
+        loc = locale or x.flow.locale
+        return cls(flow=x.flow.external_ref, flowable=x.flow.name, ref_quantity=x.flow.reference_entity.external_ref,
+                   context=cx, locale=loc)
+
+
+class SummaryLciaResult(ResponseModel):
+    scenario: str
+    object: str
+    quantity: Entity
+    scale: float
+    total: float
+
+    @classmethod
+    def from_lcia_result(cls, object, res):
+        return cls(scenario=res.scenario, object=object, quantity=Entity.from_entity(res.quantity), scale=res.scale,
+                   total=res.total())
+
+
+class LciaDetail(ResponseModel):
+    exchange: FlowSpec
+    factor: QuantityConversion
+    result: float
+
+
+class AggregatedLciaScore(ResponseModel):
+    component: str
+    result: float
+
+
+class DisaggregatedLciaScore(AggregatedLciaScore):
+    details: List[LciaDetail]
+
+    @classmethod
+    def from_component(cls, c):
+        obj = cls(component=c.entity, result=c.cumulative_result, details=[])
+        for d in c.LciaDetails:
+            obj.details.append(LciaDetail(exchange=FlowSpec.from_exchange(d.exchange, locale=d.factor.locale),
+                                          factor=QuantityConversion.from_qrresult(d.factor),
+                                          result=d.result))
+        return obj
+
+
+class LciaResult(SummaryLciaResult):
+    components: List[AggregatedLciaScore]
+
+    @classmethod
+    def from_lcia_result(cls, object, res):
+        return cls(scenario=res.scenario, object=object, quantity=Entity.from_entity(res.quantity), scale=res.scale,
+                   total=res.total(), components=res.serialize_components(detailed=False))
+
+
+class DetailedLciaResult(SummaryLciaResult):
+    components: List[DisaggregatedLciaScore]
+
+    @classmethod
+    def from_lcia_result(cls, object, res):
+        obj = cls(scenario=res.scenario, object=object, quantity=Entity.from_entity(res.quantity), scale=res.scale,
+                  total=res.total(), components=[])
+        for c in res.components:
+            obj.components.append(DisaggregatedLciaScore.from_component(c))
