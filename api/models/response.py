@@ -1,3 +1,7 @@
+"""
+DEPRECATED-- these models now live in antelope_core
+"""
+'''
 from pydantic import BaseModel
 from pydantic.typing import List, Dict, Optional
 
@@ -25,13 +29,14 @@ class ServerMeta(ResponseModel):
 
 class OriginMeta(ResponseModel):
     origin: str
+    is_lcia_engine: bool
     interfaces: List[str]
-    '''
+    """
     # report the authorization status of the query: based on auth token, what interfaces can the user access?
     read: List(str)  
     write: List(str)
     values: List(str)
-    '''
+    """
 
 
 class OriginCount(ResponseModel):
@@ -148,7 +153,7 @@ class ReferenceValue(ReferenceExchange):
         return cls.from_exchange(x, value=x.value)
 
 
-class ExchangeValue(Exchange):
+class ExchangeValues(Exchange):
     """
     dict mapping reference flows to allocated value
     """
@@ -414,3 +419,4 @@ class DetailedLciaResult(SummaryLciaResult):
                   total=res.total(), components=[])
         for c in res.components:
             obj.components.append(DisaggregatedLciaScore.from_component(c))
+'''

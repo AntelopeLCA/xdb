@@ -1,4 +1,5 @@
-from .models.response import *
+from antelope_core.models import *
+from antelope_core.entities import MetaQuantityUnit
 
 from etl import run_static_catalog, CONFIG_ORIGINS, CAT_ROOT
 
@@ -34,6 +35,35 @@ def get_server_meta():
 
 def _get_authorized_query(origin):
     """
+    The main point of this is to ask the auth server / oauth grant / etc what the supplied credentials authorize
+    with respect to the stated origin.
+
+    The way I had imagined this was:
+    the service we offer is trusted [in two senses] computation in a private setting. The user has paid to activate
+    the container (like a holosuite / DS9) and they have access to: free stuff, ecoinvent, other subscriptions,
+    their private data, private data that's been shared with them. all that is specified by semantic origin, which
+    has the format:
+
+    [origin]/query
+    [origin]/[dataset]/query
+
+    and origin specifies the provider, resource, and scope (e.g. version) of the query.
+
+    so, e.g. ecoinvent.3.4.cutoff/uuid0123-4567-.../exchanges/flow9876-5432-*
+
+    Auth grants look like:
+
+    AuthGrant(ResponseModel):
+        auth: apiToken
+        origin: str
+        interface: [one of READONLY_INTERFACE_TYPES]
+        read: True  # existence of the grant implies read access ??
+        values: bool  # access to numerical data [exchange values; characterization results]
+        write: bool  # permission to update data [within the specified interface]
+
+    under consideration:
+        masq: bool  # whether to conceal sub-origins
+
     Somehow we need / want to implement a sort of mapping where detailed origins are presented as higher-level
     origins for external query. For instance, an XDB may have the following origins on hand:
       - lcacommons.uslci.fy2020.q3
@@ -45,9 +75,8 @@ def _get_authorized_query(origin):
 
     We also need to decide whether to "masquerade" the true origin or not, i.e. if a user is authorized for
     'lcacommons.uslci' and the origin of record is 'lcacommons.uslci.fy2021.q1', do the queries include the true
-    origin or the authorized one? I would tend toward the true origin.
+    origin or the authorized one? I would tend toward the true origin. this is the masq[uerade] question.
 
-    The point is, this auth design question needs to be answered before the implementation is written.
     :param origin:
     :return:
     """
@@ -61,8 +90,16 @@ def get_origins():
 
 
 def _origin_meta(origin):
+    """
+    It may well be that OriginMeta needs to include config information (at minimum, context hints)- in which
+    case the meta object should be constructed from resources, not from blackbox queries. we shall see
+    :param origin:
+    :return:
+    """
+    is_lcia = cat.query(origin).is_lcia_engine()
     return {
         "origin": origin,
+        "is_lcia_engine": is_lcia,
         "interfaces": list(set([k.split(':')[1] for k in cat.interfaces if k.startswith(origin)]))
     }
 
@@ -80,6 +117,7 @@ def get_origin(origin: str):
 @app.get("/{origin}/synonyms", response_model=List[str])
 def get_synonyms(origin:str, term: str):
     return cat.query(origin).synonyms(term)
+
 
 
 @app.get("/{origin}/count", response_model=List[OriginCount])
@@ -107,7 +145,9 @@ def _get_origin_counts(origin: str):
         except IndexRequired:
             pass
 
-
+'''
+Index Interface
+'''
 def _search_entities(query, etype, count=50, **kwargs):
     sargs = {k:v for k, v in filter(lambda x: x[1] is not None, kwargs.items())}
     if etype not in _ETYPES:
@@ -116,6 +156,7 @@ def _search_entities(query, etype, count=50, **kwargs):
         it = getattr(query, etype)(**sargs)
     except AttributeError:
         raise HTTPException(404, "Unknown entity type %s" % etype)
+    sargs.pop('unit', None)  # special arg that gets passed to 
     for e in it:
         if not e.origin.startswith(query.origin):  # return more-specific
             continue
@@ -176,6 +217,16 @@ def search_lcia_methods(origin:str,
     return list(_search_entities(query, 'lcia_methods', **kwargs))
 
 
+@app.get("/{origin}/lcia", response_model=List[Entity])
+def get_meta_quantities(origin,
+                        name: Optional[str] = None,
+                        method: Optional[str] = None):
+    kwargs = {'name': name,
+              'method': method}
+    query = cat.query(origin)
+    return list(_search_entities(query, 'quantities', unit=MetaQuantityUnit.unitstring, **kwargs))
+
+
 @app.get("/{origin}/contexts", response_model=List[Context])
 def get_contexts(origin: str, elementary: bool=None, sense=None, parent=None):
     q = cat.query(origin)
@@ -196,6 +247,18 @@ def get_contexts(origin: str, context: str):
     q = cat.query(origin)
     return Context.from_context(q.get_context(context))
 
+
+@app.get("/{origin}/{flow}/targets", response_model=List[ReferenceExchange])
+def get_targets(origin, flow, direction: str=None):
+    if direction is not None:
+        direction = check_direction(direction)
+    return list(ReferenceExchange.from_exchange(x) for x in cat.query(origin).targets(flow, direction=direction))
+
+
+'''
+Basic interface
+(Listed after index interface b/c route resolution precedence
+'''
 
 @app.get("/{origin}/{entity}", response_model=Entity)
 def get_entity(origin: str, entity: str):
@@ -281,32 +344,59 @@ def get_unit(origin, entity):
     return getattr(cat.query(origin).get(entity), 'unit')
 
 @app.get("/{origin}/{flow}/context", response_model=Context)
-def get_targets(origin, flow):
+def get_flow_context(origin, flow):
     q = cat.query(origin)
     f = q.get(flow)
     cx = q.get_context(f.context)  # can't remember if flow is already context-equipped
     return Context.from_context(cx)
 
 
+def _get_rx_by_ref_flow(p, ref_flow):
+    """
+    This is really a bad request because either a path param or a query param was missing
+    :param p:
+    :param ref_flow: could be None if p has a unitary reference
+    :return:
+    """
+    try:
+        return p.reference(ref_flow)
+    except MultipleReferences:
+        raise HTTPException(400, f"Process {p} has multiple references")
+    except NoReference:
+        raise HTTPException(400, f"Process {p} has no references")
+
+
+@app.get("/{origin}/{process}/lcia/{quantity}", response_model=DetailedLciaResult)
+@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=DetailedLciaResult)
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=DetailedLciaResult)
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=DetailedLciaResult)
+def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str=None, qty_org: str=None):
+    pq = cat.query(origin)
+    p = pq.get(process)
+    rx = _get_rx_by_ref_flow(p, ref_flow)
+    if qty_org is None:
+        q = cat.lcia_engine.get_canonical(quantity)
+    else:
+        q = cat.query(qty_org).get_canonical(quantity)
+    # check authorization for detailed Lcia
+    res = q.do_lcia(p.lci(rx))
+    if True:
+        return DetailedLciaResult.from_lcia_result(p, res)
+    else:
+        return SummaryLciaResult.from_lcia_result(p, res)
+
+
 """TO WRITE:
 /{origin}/{entity}/properties
 
-/{origin}/{flow}/location ???
+/{origin}/{flow}/locale ???
 
 /{origin}/{flow}/emitters
 
 """
 '''
-Routes that return exchanges
+exchange interface
 '''
-
-@app.get("/{origin}/{flow}/targets", response_model=List[ReferenceExchange])
-def get_targets(origin, flow, direction: str=None):
-    if direction is not None:
-        direction = check_direction(direction)
-    return list(ReferenceExchange.from_exchange(x) for x in cat.query(origin).targets(flow, direction=direction))
-
-
 @app.get("/{origin}/{process}/exchanges", response_model=List[Exchange])
 def get_exchanges(origin, process, type: str=None, flow: str=None):
     if type and (type not in EXCHANGE_TYPES):
@@ -316,28 +406,26 @@ def get_exchanges(origin, process, type: str=None, flow: str=None):
     return list(generate_pydantic_exchanges(exch, type=type))
 
 
-@app.get("/{origin}/{process}/exchanges/{flow}", response_model=List[ExchangeValue])
+@app.get("/{origin}/{process}/exchanges/{flow}", response_model=List[ExchangeValues])
 def get_exchange_values(origin, process, flow: str):
     p = cat.query(origin).get(process)
     exch = p.exchange_values(flow=flow)
-    return list(ExchangeValue.from_ev(x) for x in exch)
+    return list(ExchangeValues.from_ev(x) for x in exch)
 
 
-@app.get("/{origin}/{process}/inventory")
+@app.get("/{origin}/{process}/inventory", response_model=List[AllocatedExchange])
+@app.get("/{origin}/{process}/{ref_flow}/inventory", response_model=List[AllocatedExchange])
 def get_inventory(origin, process, ref_flow: str=None):
     p = cat.query(origin).get(process)
-    try:
-        rx = p.reference(ref_flow)
-    except MultipleReferences:
-        raise HTTPException(404, f"Process {process} has multiple references")
-    except NoReference:
-        raise HTTPException(404, f"Process {process} has no references")
+    rx = _get_rx_by_ref_flow(process, ref_flow)
 
     inv = p.inventory(rx)
     return list(AllocatedExchange.from_inv(x, rx.flow.external_ref) for x in inv)
 
 
 '''
+background interface
+
 Routes that depend on topological ordering
 
 /{origin}/foreground  [ReferenceExchange]
@@ -371,7 +459,7 @@ every term manager the set of default contexts... what other differences exist?
 @app.get('/{origin}/{process}/ad', response_model=List[AllocatedExchange])
 def get_ad(origin: str, process: str, ref_flow: str=None):
     p = cat.query(origin).get(process)
-    rf = p.reference(ref_flow)
+    rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.ad(ref_flow=rf))
 
 
@@ -379,7 +467,7 @@ def get_ad(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/bf', response_model=List[AllocatedExchange])
 def get_bf(origin: str, process: str, ref_flow: str=None):
     p = cat.query(origin).get(process)
-    rf = p.reference(ref_flow)
+    rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.bf(ref_flow=rf))
 
 
@@ -387,7 +475,7 @@ def get_bf(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/dependencies', response_model=List[AllocatedExchange])
 def get_dependencies(origin: str, process: str, ref_flow: str=None):
     p = cat.query(origin).get(process)
-    rf = p.reference(ref_flow)
+    rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.dependencies(ref_flow=rf))
 
 
@@ -403,7 +491,7 @@ def get_emissions(origin: str, process: str, ref_flow: str=None):
     """
 
     p = cat.query(origin).get(process)
-    rf = p.reference(ref_flow)
+    rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.emissions(ref_flow=rf))
 
 
@@ -411,7 +499,7 @@ def get_emissions(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/cutoffs', response_model=List[AllocatedExchange])
 def get_cutoffs(origin: str, process: str, ref_flow: str=None):
     p = cat.query(origin).get(process)
-    rf = p.reference(ref_flow)
+    rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.cutoffs(ref_flow=rf))
 
 
@@ -419,7 +507,7 @@ def get_cutoffs(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/lci', response_model=List[AllocatedExchange])
 def get_lci(origin: str, process: str, ref_flow: str=None):
     p = cat.query(origin).get(process)
-    rf = p.reference(ref_flow)
+    rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.lci(ref_flow=rf))
 
 
@@ -427,23 +515,29 @@ def get_lci(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/consumers', response_model=List[AllocatedExchange])
 def get_consumers(origin: str, process: str, ref_flow: str=None):
     p = cat.query(origin).get(process)
-    rf = p.reference(ref_flow)
+    rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(ReferenceExchange.from_exchange(x) for x in p.consumers(ref_flow=rf))
 
 
-@app.get('/{origin}/{process}/{ref_flow}/foreground', response_model=List[ExchangeValue])
-@app.get('/{origin}/{process}/foreground', response_model=List[ExchangeValue])
+@app.get('/{origin}/{process}/{ref_flow}/foreground', response_model=List[ExchangeValues])
+@app.get('/{origin}/{process}/foreground', response_model=List[ExchangeValues])
 def get_foreground(origin: str, process: str, ref_flow: str=None):
     p = cat.query(origin).get(process)
-    rf = p.reference(ref_flow)
+    rf = _get_rx_by_ref_flow(p, ref_flow)
     fg = p.foreground(ref_flow=rf)
     rtn = [ReferenceValue.from_rx(next(fg))]
     for dx in fg:
-        rtn.append(ExchangeValue.from_ev(dx))
+        rtn.append(ExchangeValues.from_ev(dx))
     return rtn
 
 
 '''
+quantity interface
+key question: is_lcia_engine() bool returns whether the source performs input harmonization, e.g. whether it supports
+the POST routes:
+    APIv2ROOT/[origin]/[quantity id]/factors POST flow specs (or exterior flows?)- map flow spec to factors
+    APIv2ROOT/[origin]/[quantity]/lcia POST exchanges- returns an LciaResult
+
 Now, a source-specific quantity interface, which is necessary to expose non-harmonized quantity data from 
 xdb data sources.
 
@@ -483,3 +577,28 @@ def get_flow_profile(origin: str, flow_id: str, quantity: str=None, context: str
 def get_quantity_norms(origin:str, quantity_id: str):
     q = cat.query(origin).get(quantity_id)
     return Normalizations.from_q(q)
+
+
+@app.get('/{origin}/{quantity_id}/factors', response_model=List[Characterization])
+@app.get('/{origin}/{quantity_id}/factors/{flowable}', response_model=List[Characterization])
+def get_quantity_norms(origin:str, quantity_id: str, flowable: str=None):
+    q = cat.query(origin).get(quantity_id)
+    enum = q.factors(flowable=flowable)
+
+    return list(Characterization.from_cf(cf) for cf in enum)
+
+
+@app.post('/{origin}/{quantity_id}/lcia', response_model=DetailedLciaResult)
+def do_lcia_by_post(origin: str, quantity_id: str, exchanges: List[UnallocatedExchange]):
+    """
+
+    :param origin:
+    :param quantity_id:
+    :param exchanges: NOTE: the UnallocatedExchange model is identical to the ExchangeRef
+    :return:
+    """
+    q = cat.query(origin)
+    pass
+
+
+

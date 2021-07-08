@@ -36,6 +36,40 @@ A tuple of (origin, external reference) specifies a distinct entity.  In the eve
 
 When I think of more, I'll put them here.
 
+
+### Basic Entity queries
+
+These types of queries do not depend on any particular interface access.
+
+Entity-specific queries:
+
+    APIv2_ROOT/[origin]/[entity id]             - return a thorough description of the entity
+    APIv2_ROOT/[origin]/[entity id]/reference   - return a unitary reference*
+    APIv2_ROOT/[origin]/[process id]/references - return list of reference exchanges
+    APIv2_ROOT/[origin]/[flow id]/unit          - unit string of the flow's reference quantity
+    APIv2_ROOT/[origin]/[flow id]/context       - the flow's full context as a list (or empty list)
+
+* A quantity's reference is a unit (string); a flow's reference is a quantity record.  Processes are constituted to have zero or more reference exchanges, though most have only one.  If a process has a single reference exchange (or if a unitary reference is somehow designated), it will be returned; otherwise a 404 is returned with the message "No Reference" or "Multiple References".
+
+On the other hand, non-processes with unitary references can always be returned as single-entry lists, so the `references` query will never return an error for a valid entity.
+
+The basic interface can also be used to compute LCIA results, provided (a) the xdb server has access to a background 
+implementation for the named process; (b) the xdb server recognizes the quantity and can query against it and (c) the 
+query credentials are authorized by the qdb that is consulted for the query.  The query does NOT require background 
+or even exchange access to run this route, but if background access is not present, then only a summary LCIA resut
+(i.e. no details) will be returned.
+
+quantity is known to the local qdb:
+
+    APIv2_ROOT/[origin]/[process id]/lcia/[quantity id] - perform LCIA on process LCI
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/lcia/[quantity id] 
+
+quantity is known in a remote qdb (xdb must be able to resolve the resource)
+
+    APIv2_ROOT/[origin]/[process id]/lcia/[quantity origin]/[quantity id] 
+    APIv2_ROOT/[origin]/[process id]/[ref flow]/lcia/[quantity origin]/[quantity id] 
+    
+
 ### Index queries
 
 Origin-specific queries:
@@ -50,6 +84,9 @@ Origin-specific queries:
 
     # would these be better as /processes/count?
     APIv2_ROOT/[origin]/count              - dict containing count of all entity types
+
+These are not implemented at the API, but could be:
+
     APIv2_ROOT/[origin]/count/<entities>   - int reporting count of specified entity type
     APIv2_ROOT/[origin]/count/processes    - /count/process synonym
     APIv2_ROOT/[origin]/count/flows        - /count/flow synonym
@@ -59,20 +96,15 @@ Origin-specific queries:
 
 Entity-specific queries:
 
-    APIv2_ROOT/[origin]/[entity id]             - return a thorough description of the entity
-    APIv2_ROOT/[origin]/[entity id]/reference   - return a unitary reference*
-    APIv2_ROOT/[origin]/[process id]/references - return list of reference exchanges
-    APIv2_ROOT/[origin]/[flow id]/unit          - unit string of the flow's reference quantity
-    APIv2_ROOT/[origin]/[flow id]/context       - the flow's full context as a list (or empty list)
     APIv2_ROOT/[origin]/[flow id]/targets       - return reference exchanges containing the flow
 
-    APIv2_ROOT/[origin]/[context]/parent        - context's parent or none
-    APIv2_ROOT/[origin]/[context]/sense	        - context's parent or none
-    APIv2_ROOT/[origin]/[context]/subcontexts   - list of subcontexts
+    APIv2_ROOT/[origin]/contexts/[context]      - get_context() implementation - includes parent, sense, subcontexts
 
-* A quantity's reference is a unit (string); a flow's reference is a quantity record.  Processes are constituted to have zero or more reference exchanges, though most have only one.  If a process has a single reference exchange (or if a unitary reference is somehow designated), it will be returned; otherwise a 404 is returned with the message "No Reference" or "Multiple References".
+These are not implemented at the API, but could be:
 
-On the other hand, non-processes with unitary references can always be returned as single-entry lists, so the `references` query will never return an error for a valid entity.
+    APIv2_ROOT/[origin]/contexts/[context]/parent	        - context's parent or none
+    APIv2_ROOT/[origin]/contexts/[context]/sense	        - context's sense or none
+    APIv2_ROOT/[origin]/contexts/[context]/subcontexts   - list of subcontexts
 
 ### Documentary queries
 
@@ -203,7 +235,7 @@ Exchange/Background types
  * Exchange - origin, process, flow, direction, termination, type, comment, str
  * ReferenceExchange - reference=True, termination=None
  * ReferenceValue - ReferenceExchange + value
- * ExchangeValue - Exchange + multiple values, one per reference, + uncertainty
+ * ExchangeValues - Exchange + multiple values, one per reference, + uncertainty
  * AllocatedExchange - Exchange + ref_flow + value + uncertainty
 
 Quantity types
