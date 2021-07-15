@@ -14,7 +14,7 @@ add_antelope_providers(antelope_olca)
 
 
 def run_static_catalog(cat_root, config_origins):
-    s_cat = StaticCatalog(cat_root)
+    s_cat = StaticCatalog(cat_root, strict_clookup=False)
     for origin in config_origins:
         for iface in('exchange', 'index', 'background'):
             assert ':'.join([origin, iface]) in s_cat.interfaces

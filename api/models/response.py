@@ -1,30 +1,41 @@
 """
 DEPRECATED-- these models now live in antelope_core
 """
-'''
 from pydantic import BaseModel
-from pydantic.typing import List, Dict, Optional
+from pydantic.typing import List
 
 
-class ResponseModel(BaseModel):
-    # There's good reason for having this child class later on.
-    # It is to allow for global response model configuration via inheritance.
-    pass
-
-
-class ServerMeta(ResponseModel):
+class ServerMeta(BaseModel):
     title: str
     version: str
     description: str
     origins: List[str]
+    config_origins: List[str]
 
     @classmethod
     def from_app(cls, app):
         obj = cls(title=app.title,
                   version=app.version,
                   description=app.description,
-                  origins=list())
+                  origins=list(),
+                  config_origins=list())
         return obj
+
+
+class QdbMeta(BaseModel):
+    title: str
+    description: str
+
+    @classmethod
+    def from_cat(cls, cat):
+        lcia = cat.lcia_engine
+        return cls(title=lcia.__class__.__name__, description="Antelope LCIA implementation")
+
+'''
+class ResponseModel(BaseModel):
+    # There's good reason for having this child class later on.
+    # It is to allow for global response model configuration via inheritance.
+    pass
 
 
 class OriginMeta(ResponseModel):

@@ -1,7 +1,10 @@
 from antelope_core.models import *
 from antelope_core.entities import MetaQuantityUnit
 
-from etl import run_static_catalog, CONFIG_ORIGINS, CAT_ROOT
+from api.models.response import ServerMeta
+
+from .runtime import CONFIG_ORIGINS, cat, search_entities
+from .qdb import qdb_router
 
 from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired
 
@@ -11,9 +14,6 @@ import logging
 import os
 
 
-cat = run_static_catalog(CAT_ROOT, list(CONFIG_ORIGINS))
-
-_ETYPES = ('processes', 'flows', 'quantities', 'lcia_methods', 'contexts')
 
 LOGLEVEL = os.environ.get('LOGLEVEL', default='WARNING').upper()
 logging.basicConfig(level=LOGLEVEL)
@@ -24,12 +24,16 @@ app = FastAPI(
     description="API for the exchange database"
 )
 
+app.include_router(qdb_router)
+
+
 @app.get("/", response_model=ServerMeta)
 def get_server_meta():
     sm = ServerMeta.from_app(app)
     for org in cat.origins:
+        sm.origins.append(org)
         if org in CONFIG_ORIGINS:
-            sm.origins.append(org)
+            sm.config_origins.append(org)
     return sm
 
 
@@ -148,27 +152,6 @@ def _get_origin_counts(origin: str):
 '''
 Index Interface
 '''
-def _search_entities(query, etype, count=50, **kwargs):
-    sargs = {k:v for k, v in filter(lambda x: x[1] is not None, kwargs.items())}
-    if etype not in _ETYPES:
-        raise HTTPException(404, "Invalid entity type %s" % etype)
-    try:
-        it = getattr(query, etype)(**sargs)
-    except AttributeError:
-        raise HTTPException(404, "Unknown entity type %s" % etype)
-    sargs.pop('unit', None)  # special arg that gets passed to 
-    for e in it:
-        if not e.origin.startswith(query.origin):  # return more-specific
-            continue
-        if etype == 'flows':
-            yield FlowEntity.from_flow(e, **sargs)
-        else:
-            yield Entity.from_entity(e, **sargs)
-        count -= 1
-        if count <= 0:
-            break
-
-
 @app.get("/{origin}/processes") # , response_model=List[Entity])
 def search_processes(origin:str,
                      name: Optional[str]=None,
@@ -180,7 +163,7 @@ def search_processes(origin:str,
               'classifications': classifications,
               'spatialscope': spatialscope,
               'comment': comment}
-    return list(_search_entities(query, 'processes', **kwargs))
+    return list(search_entities(query, 'processes', **kwargs))
 
 @app.get("/{origin}/flows", response_model=List[FlowEntity])
 def search_flows(origin:str,
@@ -189,7 +172,7 @@ def search_flows(origin:str,
     kwargs = {'name': name,
               'casnumber': casnumber}
     query = cat.query(origin)
-    return list(_search_entities(query, 'flows', **kwargs))
+    return list(search_entities(query, 'flows', **kwargs))
 
 @app.get("/{origin}/quantities", response_model=List[Entity])
 def search_quantities(origin:str,
@@ -198,7 +181,7 @@ def search_quantities(origin:str,
     kwargs = {'name': name,
               'referenceunit': referenceunit}
     query = cat.query(origin)
-    return list(_search_entities(query, 'quantities', **kwargs))
+    return list(search_entities(query, 'quantities', **kwargs))
 
 @app.get("/{origin}/lcia_methods", response_model=List[Entity])
 @app.get("/{origin}/lciamethods", response_model=List[Entity])
@@ -214,7 +197,7 @@ def search_lcia_methods(origin:str,
               'category': category,
               'indicator': indicator}
     query = cat.query(origin)
-    return list(_search_entities(query, 'lcia_methods', **kwargs))
+    return list(search_entities(query, 'lcia_methods', **kwargs))
 
 
 @app.get("/{origin}/lcia", response_model=List[Entity])
@@ -224,7 +207,7 @@ def get_meta_quantities(origin,
     kwargs = {'name': name,
               'method': method}
     query = cat.query(origin)
-    return list(_search_entities(query, 'quantities', unit=MetaQuantityUnit.unitstring, **kwargs))
+    return list(search_entities(query, 'quantities', unit=MetaQuantityUnit.unitstring, **kwargs))
 
 
 @app.get("/{origin}/contexts", response_model=List[Context])
