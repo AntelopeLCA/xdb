@@ -104,7 +104,7 @@ def _get_canonical(origin, quantity):
         if origin is None:
             q = lcia.get_canonical(quantity)
         else:
-            q = lcia.get_canonical(cat.query(origin).get(quantity))
+            q = cat.query(origin).get_canonical(quantity)
     except EntityNotFound:
         raise HTTPException(404, f"quantity {quantity} not found")
     except UnknownOrigin:

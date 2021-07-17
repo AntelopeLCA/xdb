@@ -31,6 +31,10 @@ class QdbMeta(BaseModel):
         lcia = cat.lcia_engine
         return cls(title=lcia.__class__.__name__, description="Antelope LCIA implementation")
 
+
+class PostTerm(BaseModel):
+    term: str
+
 '''
 class ResponseModel(BaseModel):
     # There's good reason for having this child class later on.
