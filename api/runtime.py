@@ -1,6 +1,7 @@
 from etl import run_static_catalog, CONFIG_ORIGINS, CAT_ROOT
 from fastapi import HTTPException
-from antelope_core.models import Entity, FlowEntity
+from antelope_core.models import Entity, FlowEntity, UnallocatedExchange
+from antelope_core.entities import MetaQuantityUnit
 
 
 _ETYPES = ('processes', 'flows', 'quantities', 'lcia_methods', 'contexts')  # this should probably be an import
@@ -31,3 +32,11 @@ def search_entities(query, etype, count=50, **kwargs):
             break
 
 
+def do_lcia(query, qq, lci, locale=None):
+    if qq.unit == MetaQuantityUnit.unitstring and qq.has_property('impactCategories'):
+        qs = [query.get(k) for k in qq['impactCategories']]
+    else:
+        qs = [qq]
+
+    # check authorization for detailed Lcia
+    return [q.do_lcia(lci, locale=locale) for q in qs]

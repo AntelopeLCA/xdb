@@ -1,12 +1,12 @@
 from api.models.response import QdbMeta
-from .runtime import cat, search_entities
+from .runtime import cat, search_entities, do_lcia
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional
 
 import re
 
 from antelope import EntityNotFound, UnknownOrigin
-from antelope_core.models import Entity, Context, Characterization
+from antelope_core.models import Entity, Context, Characterization, DetailedLciaResult, UnallocatedExchange
 from antelope_core.entities import MetaQuantityUnit
 
 lcia = cat.lcia_engine
@@ -104,7 +104,8 @@ def _get_canonical(origin, quantity):
         if origin is None:
             q = lcia.get_canonical(quantity)
         else:
-            q = cat.query(origin).get_canonical(quantity)
+            cat.query(origin).get(quantity)  # registers it with qdb
+            q = lcia.get_canonical(quantity)
     except EntityNotFound:
         raise HTTPException(404, f"quantity {quantity} not found")
     except UnknownOrigin:
@@ -134,4 +135,15 @@ def load_quantity(quantity: str, origin: str=None):
     return ent
 
 
+@qdb_router.post('/{quantity_id}/do_lcia', response_model=List[DetailedLciaResult])
+def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], locale: str=None):
+    """
 
+    no param origin: for now, let's say you can only post lcia to canonical quantities (i.e. /load first)
+    :param quantity_id:
+    :param exchanges: NOTE: the UnallocatedExchange model is identical to the ExchangeRef
+    :param locale: used by implementation
+    :return:
+    """
+    q = _get_canonical(None, quantity_id)
+    return do_lcia(lcia, q, exchanges, locale=locale)

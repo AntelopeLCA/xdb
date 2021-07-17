@@ -1,13 +1,13 @@
 from antelope_core.models import (OriginMeta, OriginCount, Entity, FlowEntity, Context, Exchange, ReferenceExchange,
                                   ExchangeValues, ReferenceValue, DetailedLciaResult, SummaryLciaResult,
-                                  UnallocatedExchange, AllocatedExchange, Characterization, Normalizations,
+                                  AllocatedExchange, Characterization, Normalizations,
                                   generate_pydantic_exchanges)
 
 from antelope_core.entities import MetaQuantityUnit
 
 from api.models.response import ServerMeta, PostTerm
 
-from .runtime import CONFIG_ORIGINS, cat, search_entities
+from .runtime import CONFIG_ORIGINS, cat, search_entities, do_lcia
 from .qdb import qdb_router
 
 from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired
@@ -272,7 +272,10 @@ def get_entity(origin: str, entity: str):
         ent = Entity.from_entity(e)
         ent.properties[e.reference_field] = str(e.reference_entity)
     for p in e.properties():
-        ent.properties[p] = e[p]
+        try:
+            ent.properties[p] = e[p]
+        except KeyError as err:
+            ent.properties[p] = err
     return ent
 
 def _get_typed_entity(origin, entity, etype):
@@ -379,6 +382,8 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str=None
     pq = _get_authorized_query(origin)
     p = pq.get(process)
     rx = _get_rx_by_ref_flow(p, ref_flow)
+    lci = list(p.lci(rx))
+
     if qty_org is None:
         qq = cat.lcia_engine.get_canonical(quantity)
         query = _get_authorized_query(qq.origin)
@@ -386,13 +391,8 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str=None
         query = _get_authorized_query(qty_org)
         qq = query.get_canonical(quantity)
 
-    if qq.unit == MetaQuantityUnit.unitstring and qq.has_property('impactCategories'):
-        qs = [query.get(k) for k in qq['impactCategories']]
-    else:
-        qs = [qq]
+    ress = do_lcia(query, qq, lci)
 
-    # check authorization for detailed Lcia
-    ress = [q.do_lcia(p.lci(rx)) for q in qs]
     if 'exchange' in pq.authorized_interfaces:
         return [DetailedLciaResult.from_lcia_result(p, res) for res in ress]
     else:
@@ -599,16 +599,3 @@ def get_quantity_norms(origin:str, quantity_id: str, flowable: str=None):
     enum = q.factors(flowable=flowable)
 
     return list(Characterization.from_cf(cf) for cf in enum)
-
-
-@app.post('/{origin}/{quantity_id}/lcia', response_model=List[DetailedLciaResult])
-def do_lcia_by_post(origin: str, quantity_id: str, exchanges: List[UnallocatedExchange]):
-    """
-
-    :param origin:
-    :param quantity_id:
-    :param exchanges: NOTE: the UnallocatedExchange model is identical to the ExchangeRef
-    :return:
-    """
-    q = _get_authorized_query(origin)
-    pass
