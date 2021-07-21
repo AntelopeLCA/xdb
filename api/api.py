@@ -238,7 +238,7 @@ def get_contexts(origin: str, elementary: bool=None, sense=None, parent=None):
 
 
 @app.get("/{origin}/contexts/{context}", response_model=Context)
-def get_contexts(origin: str, context: str):
+def get_context(origin: str, context: str):
     q = _get_authorized_query(origin)
     return Context.from_context(q.get_context(context))
 
@@ -254,15 +254,21 @@ def get_targets(origin, flow, direction: str=None):
 Basic interface
 (Listed after index interface b/c route resolution precedence
 '''
-
-@app.get("/{origin}/{entity}", response_model=Entity)
-def get_entity(origin: str, entity: str):
+def _get_typed_entity(origin, entity, etype=None):
     try:
         e = _get_authorized_query(origin).get(entity)
     except EntityNotFound:
         raise HTTPException(404, "Entity %s not found" % entity)
     if e is None:
         raise HTTPException(404, "Entity %s is None" % entity)
+    if etype is None or e.entity_type == etype:
+        return e
+    raise HTTPException(400, detail="entity %s is not a %s" % (entity, etype))
+
+
+@app.get("/{origin}/{entity}", response_model=Entity)
+def get_entity(origin: str, entity: str):
+    e = _get_typed_entity(origin, entity)
     if e.entity_type == 'process':
         ent = Entity.from_entity(e)
         ent.properties[e.reference_field] = [ReferenceExchange.from_exchange(x) for x in e.reference_entity]
@@ -277,12 +283,6 @@ def get_entity(origin: str, entity: str):
         except KeyError as err:
             ent.properties[p] = err
     return ent
-
-def _get_typed_entity(origin, entity, etype):
-    e = get_entity(origin, entity)
-    if e.entity_type == etype:
-        return e
-    raise HTTPException(400, detail="entity %s is not a %s" % (entity, etype))
 
 
 @app.get("/{origin}/processes/{entity}/", response_model=Entity)
@@ -302,7 +302,7 @@ def get_named_quantity(origin: str, entity: str):
     return _get_typed_entity(origin, entity, 'quantity')
 
 
-@app.get("/{origin}/{entity}/reference")
+@app.get("/{origin}/{entity}/reference")  # SHOOP
 def get_unitary_reference(origin, entity):
     """
     Response model varies with entity type (!)
@@ -313,7 +313,7 @@ def get_unitary_reference(origin, entity):
     :param entity:
     :return:
     """
-    ent = _get_authorized_query(origin).get(entity)
+    ent = _get_typed_entity(origin, entity)
     if ent.entity_type == 'quantity':
         return ent.unit
     elif ent.entity_type == 'process':
@@ -329,25 +329,45 @@ def get_unitary_reference(origin, entity):
         return Entity.from_entity(ent.reference_entity)
 
 
+@app.get("/{origin}/processes/{entity}/references")
+@app.get("/{origin}/flows/{entity}/references")
+@app.get("/{origin}/quantities/{entity}/references")
+@app.get("/{origin}/flowproperties/{entity}/references")
 @app.get("/{origin}/{entity}/references")
 def get_references(origin, entity):
-    ent = _get_authorized_query(origin).get(entity)
+    ent = _get_typed_entity(origin, entity)
     if ent.entity_type == 'process':
         return list(ReferenceValue.from_rx(rx) for rx in ent.references())
     else:
         return [get_unitary_reference(origin, entity)]
 
 
-@app.get("/{origin}/{entity}/unit")
-def get_unit(origin, entity):
-    return getattr(_get_authorized_query(origin).get(entity), 'unit')
+@app.get("/{origin}/{entity}/properties", response_model=List[str])  # SHOOP
+def get_properties(origin, entity):
+    ent = _get_typed_entity(origin, entity)
+    return list(ent.properties())
 
+
+
+@app.get("/{origin}/{entity}/doc/{item}")  # SHOOP
+def get_item(origin, entity, item):
+    ent = _get_typed_entity(origin, entity)
+    return ent[item]
+
+
+@app.get("/{origin}/flows/{entity}/unit")  # SHOOP
+@app.get("/{origin}/flowproperties/{entity}/unit")  # SHOOP
+@app.get("/{origin}/quantities/{entity}/unit")  # SHOOP
+@app.get("/{origin}/{entity}/unit")  # SHOOP
+def get_unit(origin, entity):
+    return getattr(_get_typed_entity(origin, entity), 'unit')
+
+
+@app.get("/{origin}/flows/{flow}/context", response_model=Context)
 @app.get("/{origin}/{flow}/context", response_model=Context)
 def get_flow_context(origin, flow):
-    q = _get_authorized_query(origin)
-    f = q.get(flow)
-    cx = q.get_context(f.context)  # can't remember if flow is already context-equipped
-    return Context.from_context(cx)
+    f = _get_typed_entity(origin, flow, 'flow')
+    return get_context(origin, f.context[-1])  # can't remember if flow is already context-equipped
 
 
 def _get_rx_by_ref_flow(p, ref_flow):
@@ -365,7 +385,7 @@ def _get_rx_by_ref_flow(p, ref_flow):
         raise HTTPException(400, f"Process {p} has no references")
 
 
-@app.get("/{origin}/{process}/lcia/{quantity}", response_model=List[DetailedLciaResult])
+@app.get("/{origin}/{process}/lcia/{quantity}", response_model=List[DetailedLciaResult])  # SHOOP
 @app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=List[DetailedLciaResult])
 @app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=List[DetailedLciaResult])
 @app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=List[DetailedLciaResult])
@@ -385,7 +405,10 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str=None
     lci = list(p.lci(rx))
 
     if qty_org is None:
-        qq = cat.lcia_engine.get_canonical(quantity)
+        try:
+            qq = cat.lcia_engine.get_canonical(quantity)
+        except EntityNotFound:
+            raise HTTPException(404, f"Quantity {quantity} not found")
         query = _get_authorized_query(qq.origin)
     else:
         query = _get_authorized_query(qty_org)
@@ -400,8 +423,6 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str=None
 
 
 """TO WRITE:
-/{origin}/{entity}/properties
-
 /{origin}/{flow}/locale ???
 
 /{origin}/{flow}/emitters
@@ -410,18 +431,18 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str=None
 '''
 exchange interface
 '''
-@app.get("/{origin}/{process}/exchanges", response_model=List[Exchange])
+@app.get("/{origin}/{process}/exchanges", response_model=List[Exchange])  # SHOOP
 def get_exchanges(origin, process, type: str=None, flow: str=None):
     if type and (type not in EXCHANGE_TYPES):
         raise HTTPException(400, detail=f"Cannot understand type {type}")
-    p = _get_authorized_query(origin).get(process)
+    p = _get_typed_entity(origin, process, 'process')
     exch = p.exchanges(flow=flow)
     return list(generate_pydantic_exchanges(exch, type=type))
 
 
-@app.get("/{origin}/{process}/exchanges/{flow}", response_model=List[ExchangeValues])
+@app.get("/{origin}/{process}/exchanges/{flow}", response_model=List[ExchangeValues])  # SHOOP
 def get_exchange_values(origin, process, flow: str):
-    p = _get_authorized_query(origin).get(process)
+    p = _get_typed_entity(origin, process, 'process')
     exch = p.exchange_values(flow=flow)
     return list(ExchangeValues.from_ev(x) for x in exch)
 
@@ -429,7 +450,7 @@ def get_exchange_values(origin, process, flow: str):
 @app.get("/{origin}/{process}/inventory", response_model=List[AllocatedExchange])
 @app.get("/{origin}/{process}/{ref_flow}/inventory", response_model=List[AllocatedExchange])
 def get_inventory(origin, process, ref_flow: str=None):
-    p = _get_authorized_query(origin).get(process)
+    p = _get_typed_entity(origin, process, 'process')
     rx = _get_rx_by_ref_flow(p, ref_flow)
 
     inv = p.inventory(rx)
@@ -471,7 +492,7 @@ every term manager the set of default contexts... what other differences exist?
 @app.get('/{origin}/{process}/{ref_flow}/ad', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/ad', response_model=List[AllocatedExchange])
 def get_ad(origin: str, process: str, ref_flow: str=None):
-    p = _get_authorized_query(origin).get(process)
+    p = _get_typed_entity(origin, process, 'process')
     rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.ad(ref_flow=rf))
 
@@ -479,7 +500,7 @@ def get_ad(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/{ref_flow}/bf', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/bf', response_model=List[AllocatedExchange])
 def get_bf(origin: str, process: str, ref_flow: str=None):
-    p = _get_authorized_query(origin).get(process)
+    p = _get_typed_entity(origin, process, 'process')
     rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.bf(ref_flow=rf))
 
@@ -487,7 +508,7 @@ def get_bf(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/{ref_flow}/dependencies', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/dependencies', response_model=List[AllocatedExchange])
 def get_dependencies(origin: str, process: str, ref_flow: str=None):
-    p = _get_authorized_query(origin).get(process)
+    p = _get_typed_entity(origin, process, 'process')
     rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.dependencies(ref_flow=rf))
 
@@ -503,7 +524,7 @@ def get_emissions(origin: str, process: str, ref_flow: str=None):
     :return:
     """
 
-    p = _get_authorized_query(origin).get(process)
+    p = _get_typed_entity(origin, process, 'process')
     rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.emissions(ref_flow=rf))
 
@@ -511,7 +532,7 @@ def get_emissions(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/{ref_flow}/cutoffs', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/cutoffs', response_model=List[AllocatedExchange])
 def get_cutoffs(origin: str, process: str, ref_flow: str=None):
-    p = _get_authorized_query(origin).get(process)
+    p = _get_typed_entity(origin, process, 'process')
     rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.cutoffs(ref_flow=rf))
 
@@ -519,7 +540,7 @@ def get_cutoffs(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/{ref_flow}/lci', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/lci', response_model=List[AllocatedExchange])
 def get_lci(origin: str, process: str, ref_flow: str=None):
-    p = _get_authorized_query(origin).get(process)
+    p = _get_typed_entity(origin, process, 'process')
     rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.lci(ref_flow=rf))
 
@@ -527,7 +548,7 @@ def get_lci(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/{ref_flow}/consumers', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/consumers', response_model=List[AllocatedExchange])
 def get_consumers(origin: str, process: str, ref_flow: str=None):
-    p = _get_authorized_query(origin).get(process)
+    p = _get_typed_entity(origin, process, 'process')
     rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(ReferenceExchange.from_exchange(x) for x in p.consumers(ref_flow=rf))
 
@@ -535,7 +556,7 @@ def get_consumers(origin: str, process: str, ref_flow: str=None):
 @app.get('/{origin}/{process}/{ref_flow}/foreground', response_model=List[ExchangeValues])
 @app.get('/{origin}/{process}/foreground', response_model=List[ExchangeValues])
 def get_foreground(origin: str, process: str, ref_flow: str=None):
-    p = _get_authorized_query(origin).get(process)
+    p = _get_typed_entity(origin, process, 'process')
     rf = _get_rx_by_ref_flow(p, ref_flow)
     fg = p.foreground(ref_flow=rf)
     rtn = [ReferenceValue.from_rx(next(fg))]
@@ -578,9 +599,9 @@ Applicable routes:
 
 @app.get('/{origin}/{flow_id}/profile', response_model=List[Characterization])
 def get_flow_profile(origin: str, flow_id: str, quantity: str=None, context: str=None):
-    f = _get_authorized_query(origin).get(flow_id)
+    f = _get_typed_entity(origin, flow_id, 'flow')
     if quantity is not None:
-        quantity = _get_authorized_query(origin).get(quantity)
+        quantity = _get_typed_entity(origin, quantity, 'quantity')
     if context is not None:
         context = _get_authorized_query(origin).get_context(context)
     return [Characterization.from_cf(cf) for cf in f.profile(quantity=quantity, context=context)]
@@ -588,14 +609,14 @@ def get_flow_profile(origin: str, flow_id: str, quantity: str=None, context: str
 
 @app.get('/{origin}/{quantity_id}/norm', response_model=Normalizations)
 def get_quantity_norms(origin:str, quantity_id: str):
-    q = _get_authorized_query(origin).get(quantity_id)
+    q = _get_typed_entity(origin, quantity_id, 'quantity')
     return Normalizations.from_q(q)
 
 
 @app.get('/{origin}/{quantity_id}/factors', response_model=List[Characterization])
 @app.get('/{origin}/{quantity_id}/factors/{flowable}', response_model=List[Characterization])
 def get_quantity_norms(origin:str, quantity_id: str, flowable: str=None):
-    q = _get_authorized_query(origin).get(quantity_id)
+    q = _get_typed_entity(origin, quantity_id, 'quantity')
     enum = q.factors(flowable=flowable)
 
     return list(Characterization.from_cf(cf) for cf in enum)

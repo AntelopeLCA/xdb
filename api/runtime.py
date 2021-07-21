@@ -1,6 +1,6 @@
 from etl import run_static_catalog, CONFIG_ORIGINS, CAT_ROOT
 from fastapi import HTTPException
-from antelope_core.models import Entity, FlowEntity, UnallocatedExchange
+from antelope_core.models import Entity, FlowEntity
 from antelope_core.entities import MetaQuantityUnit
 
 
