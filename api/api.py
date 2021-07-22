@@ -342,6 +342,11 @@ def get_references(origin, entity):
         return [get_unitary_reference(origin, entity)]
 
 
+@app.get("/{origin}/{entity}/uuid", response_model=str)
+def get_uuid(origin, entity):
+    ent = _get_typed_entity(origin, entity)
+    return ent.uuid
+
 @app.get("/{origin}/{entity}/properties", response_model=List[str])  # SHOOP
 def get_properties(origin, entity):
     ent = _get_typed_entity(origin, entity)

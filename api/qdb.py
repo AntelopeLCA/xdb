@@ -5,9 +5,9 @@ from typing import List, Optional
 
 import re
 
-from antelope import EntityNotFound, UnknownOrigin
+from antelope import EntityNotFound, UnknownOrigin, CatalogRef, ExchangeRef
 from antelope_core.models import Entity, Context, Characterization, DetailedLciaResult, UnallocatedExchange
-from antelope_core.entities import MetaQuantityUnit
+from antelope_core.entities import MetaQuantityUnit, LcFlow, LcProcess
 
 lcia = cat.lcia_engine
 
@@ -135,6 +135,30 @@ def load_quantity(quantity: str, origin: str=None):
     return ent
 
 
+def _lcia_exch_ref(p, x):
+    if p.origin is None:
+        p.origin = x.origin
+    if x.flow.external_ref is not None:
+        try:
+            flow = cat.get_qdb_entity(x.origin, x.flow.external_ref)
+        except KeyError:
+            """
+            Need to use: external_ref, quantity_ref, flowable, context, locale.
+            Need to think about including CAS number (or synonyms) in FlowSpec as optional params
+            """
+            ref_q = _get_canonical(x.origin, x.flow.quantity_ref)
+            flow = CatalogRef.from_query(x.flow.external_ref, cat._qdb.query, 'flow', masquerade=x.origin,
+                                         name=x.flow.flowable, reference_entity=ref_q,
+                                         context=tuple(x.flow.context), locale=x.flow.locale)
+            cat.register_entity_ref(flow)
+    else:
+        # no ref, so nothing to anchor the flow to- we use it just for the lookup
+        ref_q = _get_canonical(x.origin, x.flow.quantity_ref)
+        flow = LcFlow.new(x.flow.flowable, ref_q,
+                          context=tuple(x.flow.context), locale=x.flow.locale)
+    return ExchangeRef(p, flow, x.direction, value=x.value, termination=lcia[x.termination])
+
+
 @qdb_router.post('/{quantity_id}/do_lcia', response_model=List[DetailedLciaResult])
 def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], locale: str=None):
     """
@@ -146,4 +170,7 @@ def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], 
     :return:
     """
     q = _get_canonical(None, quantity_id)
-    return do_lcia(lcia, q, exchanges, locale=locale)
+    p = LcProcess.new('LCIA POST')
+    inv = [_lcia_exch_ref(p, x) for x in exchanges]
+    ress = do_lcia(lcia, q, inv, locale=locale)
+    return [DetailedLciaResult.from_lcia_result(p, res) for res in ress]
