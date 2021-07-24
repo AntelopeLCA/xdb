@@ -1,3 +1,39 @@
+"""
+LCIA Operational Models
+
+0. Foreground Characterization (lcia on hand)
+User has a foreground with a local catalog
+User creates local flow refs in a model
+user obtains a qdb address for an LCIA indicator (origin + external ref, or simple UUID)
+user POSTS a list of FlowSpec models to /origin/lcia_ref/factors
+the LCIA engine returns a list of quantity relation results for the supplied flows, in the format:
+flow_id;
+[QRResults]
+and for each QRresult, the context is the one PASSED, not the canonical one used for lookup.  This ensures that the
+client can map its contexts onto the results.  The client can then cache all those scores on its flow refs and
+perform its own local LCIA.
+
+0a. Foreground LCIA (lcia on hand)
+Client requests an lci from an xdb (which is cached); characterizes the set of flows received via 0; and then
+performs local LCIA on the background data
+
+1. Background LCIA aka "spooky action at a distance" (lcia on xdb)
+Perfect for EPDs, proprietary data sets, and results reporting
+xdb hosts the entity about which the score is desired
+client specifies both the entity and the LCIA method by reference, either locally (external ref e.g. uuid) or fully
+qualified (also with origin).
+xdb generates the LCI and then performs local LCIA (as step 0a above) on its designated qdb.  That qdb has to
+recognize the query link, and the query must be authorized to use the qdb.
+The xdb receives the results and can decide what level of detail to return to the user.
+
+2. LCIA of exchanges (lcia on qdb)
+User generates a list of exchanges from an LCI or other means, and POSTS the exchanges to the quantity database, which
+intakes them and performs the LCIA and returns the results.  Here again the LCIA Details must include FlowSpecs of the
+inputs (e.g. context + locale), not the canonical/GLO values, so that the client can map them back to its posted
+exchanges.  The locale of the conversion is reported in the QRResult.
+
+"""
+
 from api.models.response import QdbMeta
 from .runtime import cat, search_entities, do_lcia
 from fastapi import APIRouter, HTTPException
@@ -136,6 +172,13 @@ def load_quantity(quantity: str, origin: str=None):
 
 
 def _lcia_exch_ref(p, x):
+    """
+    This turns a provided inventory exchange into an input argument for LCIA
+    at the other end, the
+    :param p:
+    :param x:
+    :return:
+    """
     if p.origin is None:
         p.origin = x.origin
     if x.flow.external_ref is not None:
@@ -156,7 +199,11 @@ def _lcia_exch_ref(p, x):
         ref_q = _get_canonical(x.origin, x.flow.quantity_ref)
         flow = LcFlow.new(x.flow.flowable, ref_q,
                           context=tuple(x.flow.context), locale=x.flow.locale)
-    return ExchangeRef(p, flow, x.direction, value=x.value, termination=lcia[x.termination])
+    if x.type == 'context':
+        term = tuple(x.context)
+    else:
+        term = x.termination
+    return ExchangeRef(p, flow, x.direction, value=x.value, termination=term)
 
 
 @qdb_router.post('/{quantity_id}/do_lcia', response_model=List[DetailedLciaResult])
