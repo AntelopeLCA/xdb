@@ -93,6 +93,12 @@ def _get_authorized_query(origin):
     return q
 
 
+def _get_authorized_interfaces(query):
+    if query:
+        return 'index', 'exchange', 'quantity', 'background'
+
+
+
 
 @app.get("/origins", response_model=List[str])
 def get_origins():
@@ -421,7 +427,7 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str=None
 
     ress = do_lcia(query, qq, lci)
 
-    if 'exchange' in pq.authorized_interfaces:
+    if 'exchange' in _get_authorized_interfaces(pq):
         return [DetailedLciaResult.from_lcia_result(p, res) for res in ress]
     else:
         return [SummaryLciaResult.from_lcia_result(p, res) for res in ress]

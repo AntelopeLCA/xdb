@@ -23,7 +23,8 @@ xdb hosts the entity about which the score is desired
 client specifies both the entity and the LCIA method by reference, either locally (external ref e.g. uuid) or fully
 qualified (also with origin).
 xdb generates the LCI and then performs local LCIA (as step 0a above) on its designated qdb.  That qdb has to
-recognize the query link, and the query must be authorized to use the qdb.
+recognize the query link, and the query must be authorized to use the qdb. [Note: this has only been achieved with
+an integrated qdb, not yet with an 'air gapped' qdb- but presumably it would be equivalent to 0+0a]
 The xdb receives the results and can decide what level of detail to return to the user.
 
 2. LCIA of exchanges (lcia on qdb)
