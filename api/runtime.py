@@ -34,7 +34,7 @@ def search_entities(query, etype, count=50, **kwargs):
 
 def do_lcia(query, qq, lci, locale=None):
     if qq.unit == MetaQuantityUnit.unitstring and qq.has_property('impactCategories'):
-        qs = [query.get(k) for k in qq['impactCategories']]
+        qs = [query.get_canonical(k) for k in qq['impactCategories']]
     else:
         qs = [qq]
 

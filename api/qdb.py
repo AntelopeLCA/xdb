@@ -5,7 +5,7 @@ LCIA Operational Models
 User has a foreground with a local catalog
 User creates local flow refs in a model
 user obtains a qdb address for an LCIA indicator (origin + external ref, or simple UUID)
-user POSTS a list of FlowSpec models to /origin/lcia_ref/factors
+user POSTS a list of FlowSpec models to /{origin}/{lcia_ref}/factors (or /qdb/{lcia_ref}/factors)
 the LCIA engine returns a list of quantity relation results for the supplied flows, in the format:
 flow_id;
 [QRResults]
@@ -35,15 +35,15 @@ exchanges.  The locale of the conversion is reported in the QRResult.
 
 """
 
-from api.models.response import QdbMeta
+from api.models.response import QdbMeta, PostFactors
 from .runtime import cat, search_entities, do_lcia
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional
 
 import re
 
-from antelope import EntityNotFound, UnknownOrigin, CatalogRef, ExchangeRef
-from antelope_core.models import Entity, Context, Characterization, DetailedLciaResult, UnallocatedExchange
+from antelope import EntityNotFound, UnknownOrigin, CatalogRef, ExchangeRef, ConversionReferenceMismatch, NoFactorsFound
+from antelope_core.models import Entity, Context, Characterization, DetailedLciaResult, UnallocatedExchange, FlowSpec
 from antelope_core.entities import MetaQuantityUnit, LcFlow, LcProcess
 
 lcia = cat.lcia_engine
@@ -222,3 +222,36 @@ def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], 
     inv = [_lcia_exch_ref(p, x) for x in exchanges]
     ress = do_lcia(lcia, q, inv, locale=locale)
     return [DetailedLciaResult.from_lcia_result(p, res) for res in ress]
+
+
+@qdb_router.post('/{quantity_id}/factors', response_model=List[PostFactors])
+def post_flow_specs(quantity_id: str, flow_specs: List[FlowSpec]):
+    """
+
+    :param quantity_id:
+    :param flow_specs:
+    :return:
+    """
+    qq = _get_canonical(None, quantity_id)
+    lookup_results = []
+    if qq.unit == MetaQuantityUnit.unitstring and qq.has_property('impactCategories'):
+        """
+        q is actually an LCIA method- we want to give back ALL the factors
+        This needs DRY (in runtime.py)
+        """
+        qs = [_get_canonical(qq.origin, k) for k in qq['impactCategories']]
+    else:
+        qs = [qq]
+    for fs in flow_specs:
+        res = PostFactors(flow_id=fs.external_ref, context=fs.context, factors=[])
+        for q in qs:
+            """
+            This smacks of DRY too
+            """
+            try:
+                qr = q.quantity_relation(fs.flowable, fs.quantity_ref, tuple(fs.context), fs.locale)
+            except (ConversionReferenceMismatch, NoFactorsFound):
+                continue
+            res.add_qr_result(qr)
+        lookup_results.append(res)
+    return lookup_results
