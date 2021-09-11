@@ -1,14 +1,32 @@
-from etl import run_static_catalog, CONFIG_ORIGINS, CAT_ROOT
+from etl import run_static_catalog, CAT_ROOT
 from fastapi import HTTPException
 from antelope_core.models import Entity, FlowEntity
+from antelope_core.auth import AuthorizationGrant
 from antelope_core.entities import MetaQuantityUnit
+
+from antelope_manager.authorization import MASTER_ISSUER, open_public_key
 
 
 _ETYPES = ('processes', 'flows', 'quantities', 'lcia_methods', 'contexts')  # this should probably be an import
 
-cat = run_static_catalog(CAT_ROOT, list(CONFIG_ORIGINS))
+
+UNRESTRICTED_GRANTS = [
+    AuthorizationGrant(user='public', origin='lcacommons', access='index', values=True, update=False),
+    AuthorizationGrant(user='public', origin='lcacommons', access='exchange', values=True, update=False),
+    AuthorizationGrant(user='public', origin='lcacommons', access='background', values=True, update=False),
+    AuthorizationGrant(user='public', origin='qdb', access='quantity', values=True, update=False),
+    AuthorizationGrant(user='public', origin='openlca', access='index', values=True, update=False),
+    AuthorizationGrant(user='public', origin='openlca', access='quantity', values=True, update=False),
+]
 
 
+PUBLIC_ORIGINS = set(k.origin for k in UNRESTRICTED_GRANTS)
+
+
+cat = run_static_catalog(CAT_ROOT, list(PUBLIC_ORIGINS))
+
+
+PUBKEYS = {MASTER_ISSUER: open_public_key()}
 
 
 def search_entities(query, etype, count=50, **kwargs):

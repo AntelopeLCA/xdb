@@ -11,7 +11,7 @@ class ServerMeta(BaseModel):
     version: str
     description: str
     origins: List[str]
-    config_origins: List[str]
+    authorized_origins: List[str]
 
     @classmethod
     def from_app(cls, app):
