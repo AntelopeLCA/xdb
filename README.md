@@ -1,9 +1,23 @@
 # xdb
-Exchange database
+Antelope Exchange database
 
-This repo contains a deployable antelope server that is exposed via a REST API. All the exchange data are static, so a REST model is appropriate.
+This is a REST HTTP server for hosting LCA data according to the [Antelope interface](https://github.com/AntelopeLCA/antelope).
+ This repo contains a deployable antelope server that is exposed via a REST API. All the exchange data are static, so a REST model is appropriate.
 
-The server should be linked to an authentication and authorization mechanism that would evaluate each request in terms of the requestor's access level.
+The server is linked to an authentication and authorization mechanism that would evaluate each request in terms of the requester's access level.
+Every query must be accompanied by an authorization token that has been computed as indicated in
+[xdb_tokens.py](https://github.com/AntelopeLCA/antelope/blob/virtualize/antelope/xdb_tokens.py).
+
+
+
+## Run the server
+
+The 
+From the root directory, run:
+
+    $ ANTELOPE_CATALOG_ROOT=/data/LCI/my_container uvicorn api:app --host 0.0.0.0 --reload
+    
+
 
 ## config
 
