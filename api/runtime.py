@@ -20,7 +20,7 @@ UNRESTRICTED_GRANTS = [
 ]
 
 
-PUBLIC_ORIGINS = set(k.origin for k in UNRESTRICTED_GRANTS)
+PUBLIC_ORIGINS = list(set(k.origin for k in UNRESTRICTED_GRANTS))
 
 
 cat = run_static_catalog(CAT_ROOT, list(PUBLIC_ORIGINS))

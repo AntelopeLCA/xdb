@@ -6,7 +6,7 @@ from antelope_core.models import (OriginMeta, OriginCount, Entity, FlowEntity, C
 from antelope_core.entities import MetaQuantityUnit
 from antelope_core.auth import AuthorizationGrant, JwtGrant
 
-from api.models.response import ServerMeta, PostTerm
+from .models.response import ServerMeta, PostTerm
 
 from .runtime import PUBLIC_ORIGINS, UNRESTRICTED_GRANTS, cat, search_entities, do_lcia, PUBKEYS
 from .qdb import qdb_router
@@ -37,19 +37,45 @@ app.include_router(qdb_router)
 
 oauth2_scheme = OAuth2PasswordBearer(auto_error=False, tokenUrl="token")  # the tokenUrl argument appears to do nothing
 
+"""
+Our implied auth database requires the following tables (basically all the stuff in runtime.py):
+
+PUBKEYS of public keys associated with valid token issuers (revocable / managed)
+ORIGINS and their maintainers 
+ISSUES which pair an origin, issuer, and interface (enum), possibly with other auth metadata
+
+Issues with the master issuer can be considered "public" interfaces, because of a policy that the auth server will 
+issue a token for a public interface to any user (subject to usage constraints) 
+
+[or: issues with None issuer do not require tokens]
+
+The db content is presently provided in digested form as PUBKEYS (containing 1 entry), PUBLIC_ORIGINS and 
+UNRESTRICTED_GRANTS, with all other grants being assumed to be delivered by JWT (nonstatically)
+
+qdb is mainly where usage is metered for public data
+
+but also, the issuing of tokens is metered- a free user will get say 15 or 25 sessions/month
+
+
+
+
+"""
+
 
 def get_token_grants(token: Optional[str]):
     if token is None:
         return []
-    payload = jwt.decode(token, 'secret', options={'verify_signature': False})
+    payload = jwt.decode(token, 'a fish', options={'verify_signature': False})
     try:
-        pub = PUBKEYS[payload['iss']]
+        pub = PUBKEYS[payload['iss']]  # this tells us the issuer signed this token
     except KeyError:
         raise HTTPException(401, detail='Issuer %s unknown' % payload['iss'])
     try:
         valid_payload = jwt.decode(token, pub, algorithms=['RS256'])
     except JWTError:
         raise HTTPException(401, detail='Token failed verification')
+    # however, we also need to test whether the issuer is trusted with the requested origin(s). otherwise one
+    # compromised key would allow a user to issue a token for any origin
     return AuthorizationGrant.from_jwt(JwtGrant(**valid_payload))
 
 
@@ -122,7 +148,7 @@ def _get_authorized_query(origin, token):
 def get_origins(token: Optional[str] = Depends(oauth2_scheme)):
     auth_grants = get_token_grants(token)
     all_origins = PUBLIC_ORIGINS + list(set(k.origin for k in auth_grants))
-    return [org for org in cat.origins if org in all_origins]
+    return [org for org in all_origins if cat.known_origin(org)]
 
 
 def _origin_meta(origin, token):

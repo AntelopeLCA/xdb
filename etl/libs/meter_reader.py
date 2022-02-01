@@ -17,6 +17,7 @@ being validated.
 The grant needs to be: userid, signer,
 """
 from antelope import ValuesAccessRequired, UpdateAccessRequired
+from antelope_core.auth import AuthorizationGrant
 
 from .models import QueryCounter, BillingCounter, UsageReport
 
@@ -29,14 +30,14 @@ class MeterReader(object):
         self._counter = dict()  # key = user,origin,interface; value = QueryCounter
         self._billing = dict()  # "", value = BillingCounter
 
-    def _access(self, grant):
-        key = (grant.user, grant.origin, grant.interface)
+    def _access(self, grant: AuthorizationGrant):
+        key = (grant.user, grant.origin, grant.access)
         if key not in self._counter:
-            self._counter[key] = QueryCounter(user=grant.user, origin=grant.origin, interface=grant.interface)
-            self._billing[key] = BillingCounter(user=grant.user, origin=grant.origin, interface=grant.interface)
+            self._counter[key] = QueryCounter(user=grant.user, origin=grant.origin, interface=grant.access)
+            self._billing[key] = BillingCounter(user=grant.user, origin=grant.origin, interface=grant.access)
         return self._counter[key]
 
-    def access(self, grant):
+    def access(self, grant: AuthorizationGrant):
         count = self._access(grant).query_access()
         if count % 1000 == 0:
             print('grant %s passed %d queries' % (grant.display, count))
