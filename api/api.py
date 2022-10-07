@@ -22,7 +22,6 @@ import logging
 import os
 
 
-
 LOGLEVEL = os.environ.get('LOGLEVEL', default='WARNING').upper()
 logging.basicConfig(level=LOGLEVEL)
 

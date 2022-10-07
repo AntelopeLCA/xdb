@@ -1,3 +1,6 @@
+"""
+This whole file is cruft
+
 from dagster import pipeline, repository, PresetDefinition, ModeDefinition, fs_io_manager, file_relative_path
 from etl.solids.sync_data import sync_data
 
@@ -15,3 +18,5 @@ def xdb():
     return [
         data_pipeline
     ]
+
+"""

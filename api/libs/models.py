@@ -38,7 +38,7 @@ class BillingCounter(BaseModel):
     values: int = 0
     update: int = 0
 
-    def apply_query(self, qc):
+    def apply_query(self, qc):  # should these be += ?
         self.access = qc.access
         self.values = qc.values
         self.update = qc.update

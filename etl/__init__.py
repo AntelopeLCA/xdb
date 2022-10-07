@@ -3,9 +3,9 @@ import os
 from antelope_core import FileAccessor
 from patoolib import repack_archive
 
-from etl.solids.run_static_catalog import run_static_catalog
+from .solids.run_static_catalog import run_static_catalog
 
-from manager.antelope_manager.static.index_and_order import is_7z, IndexAndOrder
+from antelope_manager.static.index_and_order import is_7z, IndexAndOrder
 
 
 def de7zip(existing7z):

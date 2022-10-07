@@ -2,14 +2,14 @@ from antelope_core import add_antelope_providers
 import sys
 sys.path.append('/data/GitHub/Antelope/olca-data')
 import antelope_olca
-from ..libs.xdb_catalog import XdbCatalog
-#from dagster import solid, InputDefinition, OutputDefinition, String, List
+from api.libs.xdb_catalog import XdbCatalog
+# from dagster import solid, InputDefinition, OutputDefinition, String, List
 
 
 add_antelope_providers(antelope_olca)
 
 
-#@solid(input_defs=[InputDefinition(name="cat_root",dagster_type=String), InputDefinition(name="config_origins", dagster_type=List[String])],
+# @solid(input_defs=[InputDefinition(name="cat_root",dagster_type=String), InputDefinition(name="config_origins", dagster_type=List[String])],
 #       output_defs=[OutputDefinition(name="s_cat", dagster_type=XdbCatalog)])
 
 
