@@ -178,20 +178,18 @@ def get_origin(origin: str, token: Optional[str] = Depends(oauth2_scheme)):
 
 @app.get("/{origin}/synonyms", response_model=List[str])
 @app.get("/{origin}/synonyms/{term}", response_model=List[str])
-def get_synonyms(origin:str, term: str, token: Optional[str] = Depends(oauth2_scheme)):
+def get_synonyms(origin: str, term: str, token: Optional[str] = Depends(oauth2_scheme)):
     return _get_authorized_query(origin, token).synonyms(term)
 
 
 @app.post("/{origin}/synonyms", response_model=List[str])
-def post_synonyms(origin:str, post_term: PostTerm, token: Optional[str] = Depends(oauth2_scheme)):
+def post_synonyms(origin: str, post_term: PostTerm, token: Optional[str] = Depends(oauth2_scheme)):
     return _get_authorized_query(origin, token).synonyms(post_term.term)
 
 
-
 @app.get("/{origin}/count", response_model=List[OriginCount])
-def get_origin(origin:str, token: Optional[str] = Depends(oauth2_scheme)):
+def get_origin(origin: str, token: Optional[str] = Depends(oauth2_scheme)):
     return list(_get_origin_counts(origin, token))
-
 
 
 def _get_origin_counts(origin: str, token: Optional[str]):
@@ -213,15 +211,18 @@ def _get_origin_counts(origin: str, token: Optional[str]):
         except IndexRequired:
             pass
 
+
 '''
 Index Interface
 '''
-@app.get("/{origin}/processes") # , response_model=List[Entity])
-def search_processes(origin:str,
-                     name: Optional[str]=None,
-                     classifications: Optional[str]=None,
-                     spatialscope: Optional[str]=None,
-                     comment: Optional[str]=None,
+
+
+@app.get("/{origin}/processes")  # , response_model=List[Entity])
+def search_processes(origin: str,
+                     name: Optional[str] = None,
+                     classifications: Optional[str] = None,
+                     spatialscope: Optional[str] = None,
+                     comment: Optional[str] = None,
                      token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     kwargs = {'name': name,
@@ -230,34 +231,37 @@ def search_processes(origin:str,
               'comment': comment}
     return list(search_entities(query, 'processes', **kwargs))
 
+
 @app.get("/{origin}/flows", response_model=List[FlowEntity])
-def search_flows(origin:str,
-                 name: Optional[str]=None,
-                 casnumber: Optional[str]=None,
+def search_flows(origin: str,
+                 name: Optional[str] = None,
+                 casnumber: Optional[str] = None,
                  token: Optional[str] = Depends(oauth2_scheme)):
     kwargs = {'name': name,
               'casnumber': casnumber}
     query = _get_authorized_query(origin, token)
     return list(search_entities(query, 'flows', **kwargs))
 
+
 @app.get("/{origin}/quantities", response_model=List[Entity])
-def search_quantities(origin:str,
-                      name: Optional[str]=None,
-                      referenceunit: Optional[str]=None,
+def search_quantities(origin: str,
+                      name: Optional[str] = None,
+                      referenceunit: Optional[str] = None,
                       token: Optional[str] = Depends(oauth2_scheme)):
     kwargs = {'name': name,
               'referenceunit': referenceunit}
     query = _get_authorized_query(origin, token)
     return list(search_entities(query, 'quantities', **kwargs))
 
+
 @app.get("/{origin}/lcia_methods", response_model=List[Entity])
 @app.get("/{origin}/lciamethods", response_model=List[Entity])
-def search_lcia_methods(origin:str,
-                        name: Optional[str]=None,
-                        referenceunit: Optional[str]=None,
-                        method: Optional[str]=None,
-                        category: Optional[str]=None,
-                        indicator: Optional[str]=None,
+def search_lcia_methods(origin: str,
+                        name: Optional[str] = None,
+                        referenceunit: Optional[str] = None,
+                        method: Optional[str] = None,
+                        category: Optional[str] = None,
+                        indicator: Optional[str] = None,
                         token: Optional[str] = Depends(oauth2_scheme)):
     kwargs = {'name': name,
               'referenceunit': referenceunit,
@@ -280,7 +284,7 @@ def get_meta_quantities(origin,
 
 
 @app.get("/{origin}/contexts", response_model=List[Context])
-def get_contexts(origin: str, elementary: bool=None, sense=None, parent=None,
+def get_contexts(origin: str, elementary: bool = None, sense=None, parent=None,
                  token: Optional[str] = Depends(oauth2_scheme)):
     q = _get_authorized_query(origin, token)
     if parent is not None:
@@ -303,17 +307,20 @@ def get_context(origin: str, context: str,
 
 
 @app.get("/{origin}/{flow}/targets", response_model=List[ReferenceExchange])
-def get_targets(origin, flow, direction: str=None,
+def get_targets(origin, flow, direction: str = None,
                 token: Optional[str] = Depends(oauth2_scheme)):
     if direction is not None:
         direction = check_direction(direction)
-    return list(ReferenceExchange.from_exchange(x) for x in _get_authorized_query(origin, token).targets(flow, direction=direction))
+    return list(ReferenceExchange.from_exchange(x) for x in
+                _get_authorized_query(origin, token).targets(flow, direction=direction))
 
 
 '''
 Basic interface
 (Listed after index interface b/c route resolution precedence
 '''
+
+
 def _get_typed_entity(q, entity, etype=None):
     try:
         e = q.get(entity)
@@ -353,11 +360,13 @@ def get_named_process(origin: str, entity: str,
     query = _get_authorized_query(origin, token)
     return _get_typed_entity(query, entity, 'process')
 
+
 @app.get("/{origin}/flows/{entity}/", response_model=Entity)
 def get_named_flow(origin: str, entity: str,
                    token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     return _get_typed_entity(query, entity, 'flow')
+
 
 @app.get("/{origin}/quantities/{entity}/", response_model=Entity)
 @app.get("/{origin}/flowproperties/{entity}/", response_model=Entity)
@@ -419,12 +428,12 @@ def get_uuid(origin, entity, token: Optional[str] = Depends(oauth2_scheme)):
     ent = _get_typed_entity(query, entity)
     return ent.uuid
 
+
 @app.get("/{origin}/{entity}/properties", response_model=List[str])  # SHOOP
 def get_properties(origin, entity, token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     ent = _get_typed_entity(query, entity)
     return list(ent.properties())
-
 
 
 @app.get("/{origin}/{entity}/doc/{item}")  # SHOOP
@@ -470,7 +479,7 @@ def _get_rx_by_ref_flow(p, ref_flow):
 @app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=List[DetailedLciaResult])
 @app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=List[DetailedLciaResult])
 @app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=List[DetailedLciaResult])
-def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str=None, qty_org: str=None,
+def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str = None, qty_org: str = None,
                     token: Optional[str] = Depends(oauth2_scheme)):
     """
 
@@ -514,8 +523,10 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str=None
 '''
 exchange interface
 '''
+
+
 @app.get("/{origin}/{process}/exchanges", response_model=List[Exchange])  # SHOOP
-def get_exchanges(origin, process, type: str=None, flow: str=None,
+def get_exchanges(origin, process, type: str = None, flow: str = None,
                   token: Optional[str] = Depends(oauth2_scheme)):
     if type and (type not in EXCHANGE_TYPES):
         raise HTTPException(400, detail=f"Cannot understand type {type}")
@@ -536,7 +547,7 @@ def get_exchange_values(origin, process, flow: str,
 
 @app.get("/{origin}/{process}/inventory", response_model=List[AllocatedExchange])
 @app.get("/{origin}/{process}/{ref_flow}/inventory", response_model=List[AllocatedExchange])
-def get_inventory(origin, process, ref_flow: str=None,
+def get_inventory(origin, process, ref_flow: str = None,
                   token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     p = _get_typed_entity(query, process, 'process')
@@ -578,9 +589,10 @@ every term manager the set of default contexts... what other differences exist?
 
 '''
 
+
 @app.get('/{origin}/{process}/{ref_flow}/ad', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/ad', response_model=List[AllocatedExchange])
-def get_ad(origin: str, process: str, ref_flow: str=None,
+def get_ad(origin: str, process: str, ref_flow: str = None,
            token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     p = _get_typed_entity(query, process, 'process')
@@ -590,7 +602,7 @@ def get_ad(origin: str, process: str, ref_flow: str=None,
 
 @app.get('/{origin}/{process}/{ref_flow}/bf', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/bf', response_model=List[AllocatedExchange])
-def get_bf(origin: str, process: str, ref_flow: str=None,
+def get_bf(origin: str, process: str, ref_flow: str = None,
            token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     p = _get_typed_entity(query, process, 'process')
@@ -600,7 +612,7 @@ def get_bf(origin: str, process: str, ref_flow: str=None,
 
 @app.get('/{origin}/{process}/{ref_flow}/dependencies', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/dependencies', response_model=List[AllocatedExchange])
-def get_dependencies(origin: str, process: str, ref_flow: str=None,
+def get_dependencies(origin: str, process: str, ref_flow: str = None,
                      token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     p = _get_typed_entity(query, process, 'process')
@@ -610,7 +622,7 @@ def get_dependencies(origin: str, process: str, ref_flow: str=None,
 
 @app.get('/{origin}/{process}/{ref_flow}/emissions', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/emissions', response_model=List[AllocatedExchange])
-def get_emissions(origin: str, process: str, ref_flow: str=None,
+def get_emissions(origin: str, process: str, ref_flow: str = None,
                   token: Optional[str] = Depends(oauth2_scheme)):
     """
     This returns a list of elementary exchanges from the process+reference flow pair.
@@ -629,7 +641,7 @@ def get_emissions(origin: str, process: str, ref_flow: str=None,
 
 @app.get('/{origin}/{process}/{ref_flow}/cutoffs', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/cutoffs', response_model=List[AllocatedExchange])
-def get_cutoffs(origin: str, process: str, ref_flow: str=None,
+def get_cutoffs(origin: str, process: str, ref_flow: str = None,
                 token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     p = _get_typed_entity(query, process, 'process')
@@ -639,7 +651,7 @@ def get_cutoffs(origin: str, process: str, ref_flow: str=None,
 
 @app.get('/{origin}/{process}/{ref_flow}/lci', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/lci', response_model=List[AllocatedExchange])
-def get_lci(origin: str, process: str, ref_flow: str=None,
+def get_lci(origin: str, process: str, ref_flow: str = None,
             token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     p = _get_typed_entity(query, process, 'process')
@@ -649,7 +661,7 @@ def get_lci(origin: str, process: str, ref_flow: str=None,
 
 @app.get('/{origin}/{process}/{ref_flow}/consumers', response_model=List[AllocatedExchange])
 @app.get('/{origin}/{process}/consumers', response_model=List[AllocatedExchange])
-def get_consumers(origin: str, process: str, ref_flow: str=None,
+def get_consumers(origin: str, process: str, ref_flow: str = None,
                   token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     p = _get_typed_entity(query, process, 'process')
@@ -659,7 +671,7 @@ def get_consumers(origin: str, process: str, ref_flow: str=None,
 
 @app.get('/{origin}/{process}/{ref_flow}/foreground', response_model=List[ExchangeValues])
 @app.get('/{origin}/{process}/foreground', response_model=List[ExchangeValues])
-def get_foreground(origin: str, process: str, ref_flow: str=None,
+def get_foreground(origin: str, process: str, ref_flow: str = None,
                    token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     p = _get_typed_entity(query, process, 'process')
@@ -703,8 +715,9 @@ Applicable routes:
 
 '''
 
+
 @app.get('/{origin}/{flow_id}/profile', response_model=List[Characterization])
-def get_flow_profile(origin: str, flow_id: str, quantity: str=None, context: str=None,
+def get_flow_profile(origin: str, flow_id: str, quantity: str = None, context: str = None,
                      token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     f = _get_typed_entity(query, flow_id, 'flow')
@@ -716,7 +729,7 @@ def get_flow_profile(origin: str, flow_id: str, quantity: str=None, context: str
 
 
 @app.get('/{origin}/{quantity_id}/norm', response_model=Normalizations)
-def get_quantity_norms(origin:str, quantity_id: str,
+def get_quantity_norms(origin: str, quantity_id: str,
                        token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     q = _get_typed_entity(query, quantity_id, 'quantity')
@@ -725,7 +738,7 @@ def get_quantity_norms(origin:str, quantity_id: str,
 
 @app.get('/{origin}/{quantity_id}/factors', response_model=List[Characterization])
 @app.get('/{origin}/{quantity_id}/factors/{flowable}', response_model=List[Characterization])
-def get_quantity_norms(origin:str, quantity_id: str, flowable: str=None,
+def get_quantity_norms(origin: str, quantity_id: str, flowable: str = None,
                        token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     q = _get_typed_entity(query, quantity_id, 'quantity')

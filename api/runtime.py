@@ -30,7 +30,7 @@ PUBKEYS = {MASTER_ISSUER: open_public_key()}
 
 
 def search_entities(query, etype, count=50, **kwargs):
-    sargs = {k:v for k, v in filter(lambda x: x[1] is not None, kwargs.items())}
+    sargs = {k: v for k, v in filter(lambda x: x[1] is not None, kwargs.items())}
     if etype not in _ETYPES:
         raise HTTPException(404, "Invalid entity type %s" % etype)
     try:
