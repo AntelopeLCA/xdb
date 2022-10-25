@@ -11,11 +11,15 @@ from .models.response import ServerMeta, PostTerm
 from .runtime import PUBLIC_ORIGINS, UNRESTRICTED_GRANTS, cat, search_entities, do_lcia, PUBKEYS
 from .qdb import qdb_router
 
+from .libs.xdb_query import InterfaceNotAuthorized
+
 from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from typing import List, Optional
 import logging
@@ -32,6 +36,16 @@ app = FastAPI(
 )
 
 app.include_router(qdb_router)
+
+
+async def catch_exceptions_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except InterfaceNotAuthorized as e:
+        return JSONResponse(content="origin: %s, ifafce: %s" % e.args, status_code=403)
+
+
+app.middleware('http')(catch_exceptions_middleware)
 
 
 oauth2_scheme = OAuth2PasswordBearer(auto_error=False, tokenUrl="token")  # the tokenUrl argument appears to do nothing
