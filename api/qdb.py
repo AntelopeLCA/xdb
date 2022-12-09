@@ -50,6 +50,7 @@ lcia = cat.lcia_engine
 
 qdb_router = APIRouter(prefix="/qdb")
 
+
 @qdb_router.get("/", response_model=QdbMeta)
 def get_qdb_meta():
     return QdbMeta.from_cat(cat)
@@ -78,11 +79,11 @@ def _filter_canonical_quantities(**kwargs):
 @qdb_router.get("/quantities", response_model=List[Entity])
 @qdb_router.get("/flowproperties", response_model=List[Entity])
 @qdb_router.get("/flow_properties", response_model=List[Entity])
-def search_quantities(name: Optional[str]=None,
-                      unit: Optional[str]=None,
-                      method: Optional[str]=None,
-                      category: Optional[str]=None,
-                      indicator: Optional[str]=None):
+def search_quantities(name: Optional[str] = None,
+                      unit: Optional[str] = None,
+                      method: Optional[str] = None,
+                      category: Optional[str] = None,
+                      indicator: Optional[str] = None):
     kwargs = {'name': name,
               'referenceunit': unit,
               'method': method,
@@ -93,11 +94,11 @@ def search_quantities(name: Optional[str]=None,
 
 @qdb_router.get("/lcia_methods", response_model=List[Entity])
 @qdb_router.get("/lciamethods", response_model=List[Entity])
-def search_lcia_methods(name: Optional[str]=None,
-                      unit: Optional[str]=None,
-                      method: Optional[str]=None,
-                      category: Optional[str]=None,
-                      indicator: Optional[str]=None):
+def search_lcia_methods(name: Optional[str] = None,
+                        unit: Optional[str] = None,
+                        method: Optional[str] = None,
+                        category: Optional[str] = None,
+                        indicator: Optional[str] = None):
     kwargs = {'name': name,
               'referenceunit': unit,
               'method': method,
@@ -118,7 +119,7 @@ def get_meta_quantities(name: Optional[str] = None,
 
 
 @qdb_router.get("/contexts", response_model=List[Context])
-def get_contexts(elementary: bool=None, sense=None, parent=None):
+def get_contexts(elementary: bool = None, sense=None, parent=None):
     if parent is not None:
         parent = lcia[parent]
     cxs = [Context.from_context(cx) for cx in lcia.contexts()]
@@ -154,7 +155,7 @@ def _get_canonical(origin, quantity):
 @qdb_router.get("/{origin}/{quantity}/factors", response_model=List[Characterization])
 @qdb_router.get("/{quantity}/factors/{flowable}", response_model=List[Characterization])
 @qdb_router.get("/{origin}/{quantity}/factors/{flowable}", response_model=List[Characterization])
-def factors_for_quantity(quantity: str, origin: str=None, flowable: str=None, context: str=None):
+def factors_for_quantity(quantity: str, origin: str = None, flowable: str = None, context: str = None):
     q = _get_canonical(origin, quantity)
     if context is not None:
         context = lcia[context]
@@ -164,7 +165,7 @@ def factors_for_quantity(quantity: str, origin: str=None, flowable: str=None, co
 @qdb_router.get("/{quantity}", response_model=Entity)
 @qdb_router.get("/{origin}/{quantity}", response_model=Entity)
 @qdb_router.get("/load/{origin}/{quantity}", response_model=Entity)
-def load_quantity(quantity: str, origin: str=None):
+def load_quantity(quantity: str, origin: str = None):
     q = _get_canonical(origin, quantity)
     ent = Entity.from_entity(q)
     for p in q.properties():
@@ -208,7 +209,7 @@ def _lcia_exch_ref(p, x):
 
 
 @qdb_router.post('/{quantity_id}/do_lcia', response_model=List[DetailedLciaResult])
-def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], locale: str=None):
+def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], locale: str = None):
     """
 
     no param origin: for now, let's say you can only post lcia to canonical quantities (i.e. /load first)

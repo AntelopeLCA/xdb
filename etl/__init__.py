@@ -27,10 +27,9 @@ def de7zip(existing7z):
         os.remove(existing7z)
 
 
-
 CONFIG_ORIGINS = TEST_ORIGINS = ('ecoinvent.3.7.1.cutoff', )
 
-CAT_ROOT = os.environ.get('ANTELOPE_CATALOG_ROOT')  ## help??
+CAT_ROOT = os.environ.get('ANTELOPE_CATALOG_ROOT')  # help??
 
 
 def preprocess_resources(data_root, origins):
@@ -41,5 +40,3 @@ def preprocess_resources(data_root, origins):
         src = next(aws.gen_sources(origin, 'exchange'))
         aio = IndexAndOrder(aws, origin, src)
         aio.run()
-
-

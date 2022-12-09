@@ -2,7 +2,8 @@
 
 Ostensibly, antelope v1 was the CalRecycle / ASP.NET / uo-lca implementation, with unit-indexed entities.
 
-antelope v2 was first operationalized with amaru, and this is rewriting that.
+antelope v2 was first operationalized with amaru, and this is rewriting that.  The foreground interface for antelope
+v2 is nicknamed `oryx` and is implemented in a separate server.
 
 ## Query Design
 
