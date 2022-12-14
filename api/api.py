@@ -8,7 +8,7 @@ from antelope_core.auth import AuthorizationGrant, JwtGrant
 
 from .models.response import ServerMeta, PostTerm
 
-from .runtime import PUBLIC_ORIGINS, UNRESTRICTED_GRANTS, cat, search_entities, do_lcia, PUBKEYS
+from .runtime import lca_init, search_entities, do_lcia, PUBKEYS, init_origin
 from .qdb import qdb_router
 
 from .libs.xdb_query import InterfaceNotAuthorized
@@ -36,6 +36,8 @@ app = FastAPI(
 )
 
 app.include_router(qdb_router)
+
+cat = lca_init()
 
 
 async def catch_exceptions_middleware(request: Request, call_next):
@@ -75,12 +77,10 @@ but also, the issuing of tokens is metered- a free user will get say 15 or 25 se
 """
 
 
-def get_token_grants(token: Optional[str]):
-    if token is None:
-        return []
+def _extract_jwt_payload(token):
     payload = jwt.decode(token, 'a fish', options={'verify_signature': False})
     try:
-        pub = PUBKEYS[payload['iss']]  # this tells us the issuer signed this token
+        pub = PUBKEYS[payload['iss']]  # this tells us the issuer that signed this token
     except KeyError:
         raise HTTPException(401, detail='Issuer %s unknown' % payload['iss'])
     try:
@@ -89,15 +89,36 @@ def get_token_grants(token: Optional[str]):
         raise HTTPException(401, detail='Token failed verification')
     # however, we also need to test whether the issuer is trusted with the requested origin(s). otherwise one
     # compromised key would allow a user to issue a token for any origin
-    return AuthorizationGrant.from_jwt(JwtGrant(**valid_payload))
+    return JwtGrant(**valid_payload)
+
+
+def get_token_origins(token: Optional[str]):
+    """
+    This is used to validate a token signed by the master issuer. In this case, the 'grants' property is just a
+    space-separated list of origins
+    :param token:
+    :return:
+    """
+    if token is None:
+        return []
+    jwt_grant = _extract_jwt_payload(token)
+    origins = jwt_grant.grants.split(' ')
+    return origins
+
+
+def get_token_grants(token: Optional[str]):
+    if token is None:
+        return []
+    jwt_grant = _extract_jwt_payload(token)
+    return AuthorizationGrant.from_jwt(jwt_grant)
 
 
 @app.get("/", response_model=ServerMeta)
 def get_server_meta(token: Optional[str] = Depends(oauth2_scheme)):
     grants = get_token_grants(token)
     sm = ServerMeta.from_app(app)
-    for org in PUBLIC_ORIGINS:
-        sm.origins.append(org)
+    # for org in PUBLIC_ORIGINS:
+    #     sm.origins.append(org)
     for org in sorted(set(k.origin for k in grants)):
         sm.authorized_origins.append(org)
     return sm
@@ -151,8 +172,8 @@ def _get_authorized_query(origin, token):
     :return: a catalog query, with an authorized_interfaces attribute that returns: a set of authorizations. spec tbd.
     """
     auth_grants = get_token_grants(token)
-    grants = UNRESTRICTED_GRANTS + auth_grants
-    q = cat.query(origin, grants=grants)  # XdbCatalog will return an XdbQuery which auto-enforces grants !!
+    # grants = UNRESTRICTED_GRANTS + auth_grants
+    q = cat.query(origin, grants=auth_grants)  # XdbCatalog will return an XdbQuery which auto-enforces grants !!
     # q.authorized_interfaces = set([k.split(':')[1] for k in cat.interfaces if k.startswith(origin)])
     return q
 
@@ -160,7 +181,8 @@ def _get_authorized_query(origin, token):
 @app.get("/origins", response_model=List[str])
 def get_origins(token: Optional[str] = Depends(oauth2_scheme)):
     auth_grants = get_token_grants(token)
-    all_origins = PUBLIC_ORIGINS + list(set(k.origin for k in auth_grants))
+    # all_origins = PUBLIC_ORIGINS + list(set(k.origin for k in auth_grants))
+    all_origins = list(set(k.origin for k in auth_grants))
     return [org for org in all_origins if cat.known_origin(org)]
 
 

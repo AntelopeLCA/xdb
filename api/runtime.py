@@ -1,15 +1,19 @@
-from etl import run_static_catalog, CAT_ROOT
+# from etl import run_static_catalog, CAT_ROOT
 from fastapi import HTTPException
 from antelope_core.models import Entity, FlowEntity
-from antelope_core.auth import AuthorizationGrant
+# from antelope_core.auth import AuthorizationGrant
 from antelope_core.entities import MetaQuantityUnit
+from antelope_core.catalog import LcCatalog
+from antelope_core.file_accessor import ResourceLoader
 
-from antelope_manager.authorization import MASTER_ISSUER, open_public_key
+# from antelope_manager.authorization import MASTER_ISSUER, open_public_key
+import os
 
 
 _ETYPES = ('processes', 'flows', 'quantities', 'lcia_methods', 'contexts')  # this should probably be an import
 
 
+"""
 UNRESTRICTED_GRANTS = [
     AuthorizationGrant(user='public', origin='lcacommons', access='index', values=True, update=False),
     AuthorizationGrant(user='public', origin='lcacommons', access='exchange', values=True, update=False),
@@ -24,9 +28,34 @@ PUBLIC_ORIGINS = list(set(k.origin for k in UNRESTRICTED_GRANTS))
 
 
 cat = run_static_catalog(CAT_ROOT, list(PUBLIC_ORIGINS))
+"""
+
+# these must be specified at instantiation-- specified by the blackbook server
+MASTER_ISSUER = os.getenv('MASTER_ISSUER')
+MASTER_PUBKEY = os.getenv('MASTER_PUBKEY')
+CAT_ROOT = os.getenv('XDB_CATALOG_ROOT')
+DATA_ROOT = os.getenv('XDB_DATA_ROOT')
 
 
-PUBKEYS = {MASTER_ISSUER: open_public_key()}
+def lca_init():
+    cat = LcCatalog(CAT_ROOT, strict_clookup=False, quell_biogenic_co2=True)
+    # do config here
+
+    return cat
+
+
+PUBKEYS = {MASTER_ISSUER: MASTER_PUBKEY}
+
+
+def init_origin(cat, origin):
+    """
+    Use ResourceLoader to install resources from the named directory into the catalog
+    :param cat:
+    :param origin:
+    :return:
+    """
+    rl = ResourceLoader(DATA_ROOT)
+    return rl.load_resources(cat, origin, check=True)
 
 
 def search_entities(query, etype, count=50, **kwargs):
