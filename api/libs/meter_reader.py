@@ -39,7 +39,7 @@ class MeterReader(object):
 
     def access(self, grant: AuthorizationGrant):
         count = self._access(grant).query_access()
-        if count % 1000 == 0:
+        if count % 100 == 0:
             print('grant %s passed %d queries' % (grant.display, count))
 
     def values(self, grant):

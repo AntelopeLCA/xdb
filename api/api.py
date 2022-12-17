@@ -8,12 +8,13 @@ from antelope_core.auth import AuthorizationGrant, JwtGrant
 
 from .models.response import ServerMeta, PostTerm
 
-from .runtime import lca_init, search_entities, do_lcia, PUBKEYS, init_origin
+from .runtime import cat, search_entities, do_lcia, init_origin, MASTER_ISSUER
 from .qdb import qdb_router
 
 from .libs.xdb_query import InterfaceNotAuthorized
 
 from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired
+from antelope.xdb_tokens import IssuerKey
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
@@ -36,8 +37,6 @@ app = FastAPI(
 )
 
 app.include_router(qdb_router)
-
-cat = lca_init()
 
 
 async def catch_exceptions_middleware(request: Request, call_next):
@@ -77,10 +76,43 @@ but also, the issuing of tokens is metered- a free user will get say 15 or 25 se
 """
 
 
-def _extract_jwt_payload(token):
+def get_token_command(token: Optional[str]):
+    """
+    This is used to validate a token signed by the master issuer. In this case, the 'grants' property contains
+    a command and arguments
+    :param token:
+    :return:
+    """
+    if token is None:
+        return []
+    try:
+        pub = cat.pubkeys[MASTER_ISSUER]
+    except KeyError:
+        raise HTTPException(500, "Master Issuer key is missing or invalid")
+    valid_payload = jwt.decode(token, pub, algorithms=['RS256'])
+    grant = JwtGrant(**valid_payload)
+    return grant.grants.split(':')
+
+
+def _get_all_grants(user: str):
+    """
+    generate AuthorizationGrants for every interface
+    :param user:
+    :return:
+    """
+    ag = []
+    for iface in cat.interfaces:
+        o, i = iface.split(':')
+        ag.append(AuthorizationGrant(user=user, origin=o, access=i, values=True, update=False))
+    return ag
+
+
+def get_token_grants(token: Optional[str]):
+    if token is None:
+        return []
     payload = jwt.decode(token, 'a fish', options={'verify_signature': False})
     try:
-        pub = PUBKEYS[payload['iss']]  # this tells us the issuer that signed this token
+        pub = cat.pubkeys[payload['iss']]  # this tells us the issuer that signed this token
     except KeyError:
         raise HTTPException(401, detail='Issuer %s unknown' % payload['iss'])
     try:
@@ -89,27 +121,9 @@ def _extract_jwt_payload(token):
         raise HTTPException(401, detail='Token failed verification')
     # however, we also need to test whether the issuer is trusted with the requested origin(s). otherwise one
     # compromised key would allow a user to issue a token for any origin
-    return JwtGrant(**valid_payload)
-
-
-def get_token_origins(token: Optional[str]):
-    """
-    This is used to validate a token signed by the master issuer. In this case, the 'grants' property is just a
-    space-separated list of origins
-    :param token:
-    :return:
-    """
-    if token is None:
-        return []
-    jwt_grant = _extract_jwt_payload(token)
-    origins = jwt_grant.grants.split(' ')
-    return origins
-
-
-def get_token_grants(token: Optional[str]):
-    if token is None:
-        return []
-    jwt_grant = _extract_jwt_payload(token)
+    if payload['iss'] == MASTER_ISSUER:
+        return _get_all_grants(user=payload['sub'])
+    jwt_grant = JwtGrant(**valid_payload)
     return AuthorizationGrant.from_jwt(jwt_grant)
 
 
@@ -122,6 +136,33 @@ def get_server_meta(token: Optional[str] = Depends(oauth2_scheme)):
     for org in sorted(set(k.origin for k in grants)):
         sm.authorized_origins.append(org)
     return sm
+
+
+@app.post("/update_issuer/{issuer}", response_model=bool)
+def update_issuer(issuer: str, issuer_key: IssuerKey, token: Optional[str] = Depends(oauth2_scheme)):
+    command, arg = get_token_command(token)
+    if command != 'update_issuer' or arg != issuer or arg != issuer_key.issuer:
+        raise HTTPException(400, "command token is incorrect")
+    if issuer == MASTER_ISSUER:
+        raise HTTPException(403, "Remote update of master issuer key is not allowed")
+    cat.pubkeys[issuer] = issuer_key
+    cat.save_pubkeys()
+    return True
+
+
+@app.get("/update_origin/{origin}", response_model=bool)
+@app.get("/update_origin/{origin}/{interface}", response_model=bool)
+def update_origin(origin: str, interface: Optional[str] = None, token: Optional[str] = Depends(oauth2_scheme)):
+    iface = ':'.join((origin, interface))
+    command, arg = get_token_command(token)
+    if command != 'update_origin' or arg != origin:
+        raise HTTPException(400, "command token is incorrect")
+    result = init_origin(origin)
+
+    if interface is None:
+        return result
+    else:
+        return iface in cat.interfaces
 
 
 def _get_authorized_query(origin, token):

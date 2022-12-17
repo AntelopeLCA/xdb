@@ -3,8 +3,10 @@ from fastapi import HTTPException
 from antelope_core.models import Entity, FlowEntity
 # from antelope_core.auth import AuthorizationGrant
 from antelope_core.entities import MetaQuantityUnit
-from antelope_core.catalog import LcCatalog
+# from antelope_core.catalog import LcCatalog
 from antelope_core.file_accessor import ResourceLoader
+
+from .libs.xdb_catalog import XdbCatalog
 
 # from antelope_manager.authorization import MASTER_ISSUER, open_public_key
 import os
@@ -32,25 +34,23 @@ cat = run_static_catalog(CAT_ROOT, list(PUBLIC_ORIGINS))
 
 # these must be specified at instantiation-- specified by the blackbook server
 MASTER_ISSUER = os.getenv('MASTER_ISSUER')
-MASTER_PUBKEY = os.getenv('MASTER_PUBKEY')
 CAT_ROOT = os.getenv('XDB_CATALOG_ROOT')
 DATA_ROOT = os.getenv('XDB_DATA_ROOT')
 
 
 def lca_init():
-    cat = LcCatalog(CAT_ROOT, strict_clookup=False, quell_biogenic_co2=True)
+    _cat = XdbCatalog(CAT_ROOT, strict_clookup=False, quell_biogenic_co2=True)
     # do config here
 
-    return cat
+    return _cat
 
 
-PUBKEYS = {MASTER_ISSUER: MASTER_PUBKEY}
+cat = lca_init()
 
 
-def init_origin(cat, origin):
+def init_origin(origin):
     """
     Use ResourceLoader to install resources from the named directory into the catalog
-    :param cat:
     :param origin:
     :return:
     """
