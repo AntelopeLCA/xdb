@@ -25,6 +25,7 @@ from starlette.responses import JSONResponse
 from typing import List, Optional
 import logging
 import os
+from datetime import datetime
 
 
 LOGLEVEL = os.environ.get('LOGLEVEL', default='WARNING').upper()
@@ -80,15 +81,18 @@ def get_token_command(token: Optional[str]):
     if token is None:
         return []
     try:
-        pub = cat.pubkeys[MASTER_ISSUER].public_key
+        iss = cat.pubkeys[MASTER_ISSUER]
+        if iss.expiry < datetime.now().timestamp():
+            raise HTTPException(500, "Master issuer certificate is expired")
+        pub = iss.public_key
     except KeyError:
         raise HTTPException(500, "Master Issuer key is missing or invalid")
     try:
         valid_payload = jwt.decode(token, pub, algorithms=['RS256'])
     except ExpiredSignatureError:
-        raise HTTPException(500, "Master issuer certificate is expired")
+        raise HTTPException(400, "Token expired")
     except JWTError:
-        raise HTTPException(401, "Command token is invalid")
+        raise HTTPException(400, "Command token is invalid")
     grant = JwtGrant(**valid_payload)
     return grant.grants.split(':')
 
@@ -114,9 +118,12 @@ def get_token_grants(token: Optional[str]):
     except ExpiredSignatureError:
         raise HTTPException(401, "Token is expired")
     try:
-        pub = cat.pubkeys[payload['iss']].public_key  # this tells us the issuer that signed this token
+        iss = cat.pubkeys[payload['iss']]
     except KeyError:
         raise HTTPException(401, detail='Issuer %s unknown' % payload['iss'])
+    if iss.expiry < datetime.now().timestamp():
+        raise HTTPException(401, detail='Issuer %s certificate is expired. blackbook server must refresh')
+    pub = iss.public_key  # this tells us the issuer that signed this token
     try:
         valid_payload = jwt.decode(token, pub, algorithms=['RS256'])
     except JWTError:
