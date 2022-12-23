@@ -27,12 +27,13 @@ class XdbCatalog(LcCatalog):
     def load_pubkeys(self):
 
         if not os.path.exists(self.pubkeys_file):
-            return dict()
+            self.pubkeys = dict()
 
-        with open(self.pubkeys_file, 'r') as fp:
-            _pubkeys = [IssuerKey(**d) for d in json.load(fp)]
+        else:
+            with open(self.pubkeys_file, 'r') as fp:
+                _pubkeys = [IssuerKey(**d) for d in json.load(fp)]
 
-        self.pubkeys = {k.issuer: k for k in _pubkeys}
+            self.pubkeys = {k.issuer: k for k in _pubkeys}
 
     def save_pubkeys(self):
         # in lieu of a persistence layer

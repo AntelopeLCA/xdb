@@ -15,7 +15,8 @@ Every query must be accompanied by an authorization token that has been computed
 The 
 From the root directory, run:
 
-    $ ANTELOPE_CATALOG_ROOT=/data/LCI/my_container uvicorn api:app --host 0.0.0.0 --reload
+    $ MASTER_ISSUER='ANTELOPE_AUTHORITY' XDB_CATALOG_ROOT='/data/LCI/dummy'\
+       XDB_DATA_ROOT='/data/GitHub/Antelope/blackbook/app/test_data/' uvicorn api:app --host 0.0.0.0 --reload
     
 
 

@@ -18,7 +18,7 @@ from antelope.xdb_tokens import IssuerKey
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from jose import JWTError, ExpiredSignatureError, jwt
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -32,7 +32,7 @@ logging.basicConfig(level=LOGLEVEL)
 
 app = FastAPI(
     title="XDB API",
-    version="0.0.1",
+    version="0.1.1",  # blackbook integration
     description="API for the exchange database"
 )
 
@@ -55,23 +55,17 @@ oauth2_scheme = OAuth2PasswordBearer(auto_error=False, tokenUrl="token")  # the 
 Our implied auth database requires the following tables (basically all the stuff in runtime.py):
 
 PUBKEYS of public keys associated with valid token issuers (revocable / managed)
-ORIGINS and their maintainers 
-ISSUES which pair an origin, issuer, and interface (enum), possibly with other auth metadata
+ORIGINS and their maintainers / issuers (resource)
+GRANTS which pair an origin, issuer, and interface (enum), with a user (possibly with other auth metadata)
 
-Issues with the master issuer can be considered "public" interfaces, because of a policy that the auth server will 
+?: Issues with the master issuer can be considered "public" interfaces, because of a policy that the auth server will 
 issue a token for a public interface to any user (subject to usage constraints) 
 
 [or: issues with None issuer do not require tokens]
 
-The db content is presently provided in digested form as PUBKEYS (containing 1 entry), PUBLIC_ORIGINS and 
-UNRESTRICTED_GRANTS, with all other grants being assumed to be delivered by JWT (nonstatically)
-
 qdb is mainly where usage is metered for public data
 
-but also, the issuing of tokens is metered- a free user will get say 15 or 25 sessions/month
-
-
-
+but also, the issuing of tokens is metered- a free user will get say k sessions/month
 
 """
 
@@ -86,10 +80,15 @@ def get_token_command(token: Optional[str]):
     if token is None:
         return []
     try:
-        pub = cat.pubkeys[MASTER_ISSUER]
+        pub = cat.pubkeys[MASTER_ISSUER].public_key
     except KeyError:
         raise HTTPException(500, "Master Issuer key is missing or invalid")
-    valid_payload = jwt.decode(token, pub, algorithms=['RS256'])
+    try:
+        valid_payload = jwt.decode(token, pub, algorithms=['RS256'])
+    except ExpiredSignatureError:
+        raise HTTPException(500, "Master issuer certificate is expired")
+    except JWTError:
+        raise HTTPException(401, "Command token is invalid")
     grant = JwtGrant(**valid_payload)
     return grant.grants.split(':')
 
@@ -110,9 +109,12 @@ def _get_all_grants(user: str):
 def get_token_grants(token: Optional[str]):
     if token is None:
         return []
-    payload = jwt.decode(token, 'a fish', options={'verify_signature': False})
     try:
-        pub = cat.pubkeys[payload['iss']]  # this tells us the issuer that signed this token
+        payload = jwt.decode(token, 'a fish', options={'verify_signature': False})
+    except ExpiredSignatureError:
+        raise HTTPException(401, "Token is expired")
+    try:
+        pub = cat.pubkeys[payload['iss']].public_key  # this tells us the issuer that signed this token
     except KeyError:
         raise HTTPException(401, detail='Issuer %s unknown' % payload['iss'])
     try:
