@@ -13,7 +13,7 @@ from .qdb import qdb_router
 
 from .libs.xdb_query import InterfaceNotAuthorized
 
-from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired
+from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired, UnknownOrigin
 from antelope.xdb_tokens import IssuerKey
 
 from fastapi import FastAPI, HTTPException, Depends
@@ -28,7 +28,7 @@ import os
 from datetime import datetime
 
 
-LOGLEVEL = os.environ.get('LOGLEVEL', default='WARNING').upper()
+LOGLEVEL = os.environ.get('LOGLEVEL', default='INFO').upper()
 logging.basicConfig(level=LOGLEVEL)
 
 app = FastAPI(
@@ -44,7 +44,7 @@ async def catch_exceptions_middleware(request: Request, call_next):
     try:
         return await call_next(request)
     except InterfaceNotAuthorized as e:
-        return JSONResponse(content="origin: %s, ifafce: %s" % e.args, status_code=403)
+        return JSONResponse(content="origin: %s, iface: %s" % e.args, status_code=403)
 
 
 app.middleware('http')(catch_exceptions_middleware)
@@ -83,16 +83,17 @@ def get_token_command(token: Optional[str]):
     try:
         iss = cat.pubkeys[MASTER_ISSUER]
         if iss.expiry < datetime.now().timestamp():
-            raise HTTPException(500, "Master issuer certificate is expired")
+            raise HTTPException(503, detail="Master issuer certificate is expired")
         pub = iss.public_key
     except KeyError:
-        raise HTTPException(500, "Master Issuer key is missing or invalid")
+        logging.info('pubkey MISSING')
+        raise HTTPException(503, detail="Master Issuer key is missing or invalid")
     try:
         valid_payload = jwt.decode(token, pub, algorithms=['RS256'])
     except ExpiredSignatureError:
-        raise HTTPException(400, "Token expired")
+        raise HTTPException(400, detail="Token expired")
     except JWTError:
-        raise HTTPException(400, "Command token is invalid")
+        raise HTTPException(400, detail="Command token is invalid")
     grant = JwtGrant(**valid_payload)
     return grant.grants.split(':')
 
@@ -116,7 +117,7 @@ def get_token_grants(token: Optional[str]):
     try:
         payload = jwt.decode(token, 'a fish', options={'verify_signature': False})
     except ExpiredSignatureError:
-        raise HTTPException(401, "Token is expired")
+        raise HTTPException(401, detail="Token is expired")
     try:
         iss = cat.pubkeys[payload['iss']]
     except KeyError:
@@ -151,9 +152,9 @@ def get_server_meta(token: Optional[str] = Depends(oauth2_scheme)):
 def update_issuer(issuer: str, issuer_key: IssuerKey, token: Optional[str] = Depends(oauth2_scheme)):
     command, arg = get_token_command(token)
     if command != 'update_issuer' or arg != issuer or arg != issuer_key.issuer:
-        raise HTTPException(400, "command token is incorrect")
+        raise HTTPException(400, detail="command token is incorrect")
     if issuer == MASTER_ISSUER:
-        raise HTTPException(403, "Remote update of master issuer key is not allowed")
+        raise HTTPException(403, detail="Remote update of master issuer key is not allowed")
     cat.pubkeys[issuer] = issuer_key
     cat.save_pubkeys()
     return True
@@ -165,8 +166,15 @@ def update_origin(origin: str, interface: Optional[str] = None, token: Optional[
     iface = ':'.join((origin, interface))
     command, arg = get_token_command(token)
     if command != 'update_origin' or arg != origin:
-        raise HTTPException(400, "command token is incorrect")
-    result = init_origin(origin)
+        raise HTTPException(400, detail="command token is incorrect")
+
+    if iface in cat.interfaces:
+        return True
+
+    try:
+        result = init_origin(origin)
+    except UnknownOrigin:
+        raise HTTPException(404, "unknown origin %s" % origin)
 
     if interface is None:
         return result
@@ -254,6 +262,7 @@ def _origin_meta(origin, token):
 @app.get("/{origin}/", response_model=List[OriginMeta])
 def get_origin(origin: str, token: Optional[str] = Depends(oauth2_scheme)):
     """
+    Why does this return a list? because it's startswith
     TODO: reconcile the AVAILABLE origins with the CONFIGURED origins and the AUTHORIZED origins
     :param origin:
     :param token:
@@ -411,9 +420,9 @@ def _get_typed_entity(q, entity, etype=None):
     try:
         e = q.get(entity)
     except EntityNotFound:
-        raise HTTPException(404, "Entity %s not found" % entity)
+        raise HTTPException(404, detail="Entity %s not found" % entity)
     if e is None:
-        raise HTTPException(404, "Entity %s is None" % entity)
+        raise HTTPException(404, detail="Entity %s is None" % entity)
     if etype is None or e.entity_type == etype:
         return e
     raise HTTPException(400, detail="entity %s is not a %s" % (entity, etype))
@@ -485,9 +494,9 @@ def get_unitary_reference(origin, entity, token: Optional[str] = Depends(oauth2_
         try:
             rx = ReferenceExchange.from_exchange(ent.reference())
         except MultipleReferences:
-            raise HTTPException(404, f"Process {entity} has multiple references")
+            raise HTTPException(404, detail=f"Process {entity} has multiple references")
         except NoReference:
-            raise HTTPException(404, f"Process {entity} has no references")
+            raise HTTPException(404, detail=f"Process {entity} has no references")
         return rx
 
     else:  # if ent.entity_type == 'flow':
@@ -505,7 +514,7 @@ def get_references(origin, entity, token: Optional[str] = Depends(oauth2_scheme)
     if ent.entity_type == 'process':
         return list(ReferenceValue.from_rx(rx) for rx in ent.references())
     else:
-        return [get_unitary_reference(origin, entity)]
+        return [get_unitary_reference(origin, entity, token)]
 
 
 @app.get("/{origin}/{entity}/uuid", response_model=str)
@@ -556,9 +565,9 @@ def _get_rx_by_ref_flow(p, ref_flow):
     try:
         return p.reference(ref_flow)
     except MultipleReferences:
-        raise HTTPException(400, f"Process {p} has multiple references")
+        raise HTTPException(400, detail=f"Process {p} has multiple references")
     except NoReference:
-        raise HTTPException(400, f"Process {p} has no references")
+        raise HTTPException(400, detail=f"Process {p} has no references")
 
 
 @app.get("/{origin}/{process}/lcia/{quantity}", response_model=List[DetailedLciaResult])  # SHOOP
@@ -586,7 +595,7 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str = No
         try:
             qq = cat.lcia_engine.get_canonical(quantity)
         except EntityNotFound:
-            raise HTTPException(404, f"Quantity {quantity} not found")
+            raise HTTPException(404, detail=f"Quantity {quantity} not found")
         query = _get_authorized_query(qq.origin, token)
     else:
         query = _get_authorized_query(qty_org, token)

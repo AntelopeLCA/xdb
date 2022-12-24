@@ -10,7 +10,7 @@ from antelope.interfaces.ibackground import BACKGROUND_VALUES_REQUIRED
 _VALUES_REQUIRED = EXCHANGE_VALUES_REQUIRED.union(BACKGROUND_VALUES_REQUIRED)
 _NOAUTH_IFACES = ('basic', 'index')
 
-_AUTH_NOT_REQUIRED = {'is_lcia_engine'}
+_AUTH_NOT_REQUIRED = {'is_lcia_engine', 'check_bg'}
 
 
 class InterfaceNotAuthorized(Exception):

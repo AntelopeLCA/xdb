@@ -1,4 +1,6 @@
 # from etl import run_static_catalog, CAT_ROOT
+import tempfile
+
 from fastapi import HTTPException
 from antelope_core.models import Entity, FlowEntity
 # from antelope_core.auth import AuthorizationGrant
@@ -35,6 +37,10 @@ cat = run_static_catalog(CAT_ROOT, list(PUBLIC_ORIGINS))
 # these must be specified at instantiation-- specified by the blackbook server
 MASTER_ISSUER = os.getenv('MASTER_ISSUER')
 CAT_ROOT = os.getenv('XDB_CATALOG_ROOT')
+if CAT_ROOT is None:
+    # this really doesn't work because the tempdir could never have the PUBKEYS stored.
+    CAT_ROOT = tempfile.TemporaryDirectory().name
+
 DATA_ROOT = os.getenv('XDB_DATA_ROOT')
 
 
