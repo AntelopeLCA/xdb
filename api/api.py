@@ -830,6 +830,17 @@ Applicable routes:
 '''
 
 
+@app.get('/{origin}/{flow_id}/cf/{quantity_id}', response_model=float)
+def get_cf(origin: str, flow_id: str, quantity_id: str, context: str = None, locale: str = None,
+           token: Optional[str] = Depends(oauth2_scheme)):
+    query = _get_authorized_query(origin, token)
+    f = _get_typed_entity(query, flow_id, 'flow')
+    if context is not None:
+        context = query.get_context(context)
+    qq = cat.get_canonical(quantity_id)
+    return qq.cf(f, context=context, locale=locale)
+
+
 @app.get('/{origin}/{flow_id}/profile', response_model=List[Characterization])
 def get_flow_profile(origin: str, flow_id: str, quantity: str = None, context: str = None,
                      token: Optional[str] = Depends(oauth2_scheme)):
