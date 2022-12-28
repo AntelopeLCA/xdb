@@ -2,7 +2,7 @@
 A CatalogQuery subclass that enforces access limitations
 """
 
-from antelope_core.catalog_query import CatalogQuery
+from antelope_core.catalog_query import CatalogQuery, BackgroundSetup
 from antelope.interfaces.iexchange import EXCHANGE_VALUES_REQUIRED
 from antelope.interfaces.ibackground import BACKGROUND_VALUES_REQUIRED
 
@@ -24,6 +24,18 @@ class XdbQuery(CatalogQuery):
 
     def authorized_interfaces(self):
         return set(self._grants.keys())
+
+    def _setup_background(self, bi):
+        """
+        need to provide an ordinary non-metering catalog query to the background
+        :param bi:
+        :return:
+        """
+        self._debug('Setting up non-metering background interface')
+        try:
+            bi.setup_bm(CatalogQuery(self._origin, self._catalog))
+        except AttributeError:
+            raise BackgroundSetup('Failed to configure background')
 
     def _perform_query(self, itype, attrname, exc, *args, strict=False, **kwargs):
         if attrname not in _AUTH_NOT_REQUIRED:

@@ -5,6 +5,7 @@ from antelope_core.models import (OriginMeta, OriginCount, Entity, FlowEntity, C
 
 from antelope_core.entities import MetaQuantityUnit
 from antelope_core.auth import AuthorizationGrant, JwtGrant
+from antelope_core.contexts import NullContext
 
 from .models.response import ServerMeta, PostTerm
 
@@ -398,15 +399,30 @@ def get_contexts(origin: str, elementary: bool = None, sense=None, parent=None,
 def get_context(origin: str, context: str,
                 token: Optional[str] = Depends(oauth2_scheme)):
     q = _get_authorized_query(origin, token)
-    return Context.from_context(q.get_context(context))
+    naive_cx = q.get_context(context)
+    if naive_cx is NullContext:
+        wise_cx = cat.lcia_engine[context]
+        if wise_cx is NullContext:
+            raise HTTPException(404, detail=f'context {context} not recognized')
+        return Context.from_context(wise_cx)
+    return Context.from_context(naive_cx)
 
 
-@app.get("/{origin}/{flow}/targets", response_model=List[ReferenceExchange])
+@app.get("/{origin}/{flow}/targets", response_model=List[Entity])
 def get_targets(origin, flow, direction: str = None,
                 token: Optional[str] = Depends(oauth2_scheme)):
+    """
+    According to the antelope spec, this returns a list of processes
+    :param origin:
+    :param flow:
+    :param direction:
+    :param token:
+    :return:
+    """
+
     if direction is not None:
         direction = check_direction(direction)
-    return list(ReferenceExchange.from_exchange(x) for x in
+    return list(Entity.from_entity(x) for x in
                 _get_authorized_query(origin, token).targets(flow, direction=direction))
 
 
@@ -535,7 +551,10 @@ def get_properties(origin, entity, token: Optional[str] = Depends(oauth2_scheme)
 def get_item(origin, entity, item, token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     ent = _get_typed_entity(query, entity)
-    return ent[item]
+    try:
+        return ent[item]
+    except KeyError:
+        raise HTTPException(404, detail=f"{origin}/{entity} has no item {item}")
 
 
 @app.get("/{origin}/flows/{entity}/unit")  # SHOOP
