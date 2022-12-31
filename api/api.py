@@ -45,7 +45,7 @@ async def catch_exceptions_middleware(request: Request, call_next):
     try:
         return await call_next(request)
     except InterfaceNotAuthorized as e:
-        return JSONResponse(content="origin: %s, iface: %s" % e.args, status_code=403)
+        return JSONResponse(content="no grant found: origin: %s, iface: %s" % e.args, status_code=403)
 
 
 app.middleware('http')(catch_exceptions_middleware)
@@ -232,7 +232,7 @@ def _get_authorized_query(origin, token):
     """
     auth_grants = get_token_grants(token)
     # grants = UNRESTRICTED_GRANTS + auth_grants
-    q = cat.query(origin, grants=auth_grants)  # XdbCatalog will return an XdbQuery which auto-enforces grants !!
+    q = cat.query(origin, grants=auth_grants, cache=False)  # XdbCatalog will return an XdbQuery which auto-enforces grants !!
     # q.authorized_interfaces = set([k.split(':')[1] for k in cat.interfaces if k.startswith(origin)])
     return q
 
