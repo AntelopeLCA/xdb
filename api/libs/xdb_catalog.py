@@ -59,6 +59,11 @@ class XdbCatalog(LcCatalog):
         self.pubkeys[master_issuer.issuer] = master_issuer
         self.save_pubkeys()
 
+    def reset_origin(self, origin):
+        for res in self.resources(origin):
+            self.delete_resource(res)
+        self._queries.pop(origin, None)
+
     def __init__(self, *args, **kwargs):
         super(XdbCatalog, self).__init__(*args, **kwargs)
         self.meter = MeterReader()

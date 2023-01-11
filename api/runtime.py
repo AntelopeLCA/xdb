@@ -42,6 +42,7 @@ if CAT_ROOT is None:
     CAT_ROOT = tempfile.TemporaryDirectory().name
 
 DATA_ROOT = os.getenv('XDB_DATA_ROOT')
+DATA_AWS_BUCKET = 'antelope-data'
 
 
 def lca_init():
@@ -54,12 +55,31 @@ def lca_init():
 cat = lca_init()
 
 
-def init_origin(origin):
+def _aws_sync_origin(origin):
     """
-    Use ResourceLoader to install resources from the named directory into the catalog
+    Uses an unsafe system command to sync the s3 bucket to the data directory for the requested origin.
+    assumes s3 permissions are established and aws-cli is installed. and that the path exists in the bucket.
     :param origin:
     :return:
     """
+    target_dir = os.path.join(DATA_ROOT, origin)
+    os.system(f"aws s3 sync s3://{DATA_AWS_BUCKET}/{origin} {target_dir}")
+
+
+def init_origin(origin, reset=False):
+    """
+    Remove any resources associated with the origin first
+    then sync the
+    Use ResourceLoader to install resources from the named directory into the catalog
+    :param origin:
+    :param reset: [False] if true, delete the resources and start over
+    :return:
+    """
+    if reset:
+        cat.reset_origin(origin)
+        _aws_sync_origin(origin)
+    elif not os.path.exists(os.path.join(DATA_ROOT, origin)):
+        _aws_sync_origin(origin)
     rl = ResourceLoader(DATA_ROOT)
     return rl.load_resources(cat, origin, check=True)
 

@@ -87,7 +87,8 @@ def get_token_command(token: Optional[str]):
             raise HTTPException(503, detail="Master issuer certificate is expired")
         pub = iss.public_key
     except KeyError:
-        logging.info('pubkey MISSING')
+        logging.info('pubkey MISSING for %s' % MASTER_ISSUER)
+        logging.info('avl pubkeys %s' % list(cat.pubkeys.keys()))
         raise HTTPException(503, detail="Master Issuer key is missing or invalid")
     try:
         valid_payload = jwt.decode(token, pub, algorithms=['RS256'])
@@ -163,7 +164,16 @@ def update_issuer(issuer: str, issuer_key: IssuerKey, token: Optional[str] = Dep
 
 @app.get("/update_origin/{origin}", response_model=bool)
 @app.get("/update_origin/{origin}/{interface}", response_model=bool)
-def update_origin(origin: str, interface: Optional[str] = None, token: Optional[str] = Depends(oauth2_scheme)):
+def update_origin(origin: str, interface: Optional[str] = None, token: Optional[str] = Depends(oauth2_scheme),
+                  reset: bool = None):
+    """
+    synch the origin data path and install resources found there.
+    :param origin:
+    :param interface:
+    :param token:
+    :param reset: Query param specifying whether to blow away any existing resources
+    :return:
+    """
     iface = ':'.join((origin, interface))
     command, arg = get_token_command(token)
     if command != 'update_origin' or arg != origin:
@@ -173,7 +183,7 @@ def update_origin(origin: str, interface: Optional[str] = None, token: Optional[
         return True
 
     try:
-        result = init_origin(origin)
+        result = init_origin(origin, reset=reset)
     except UnknownOrigin:
         raise HTTPException(404, "unknown origin %s" % origin)
 
