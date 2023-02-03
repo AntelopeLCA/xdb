@@ -183,7 +183,7 @@ def _lcia_exch_ref(p, x):
     """
     if p.origin is None:
         p.origin = x.origin
-    if x.flow.external_ref is not None:
+    if x.flow.external_ref is not None:  # FlowSpec.external_ref is OPTIONAL
         try:
             flow = cat.get_qdb_entity(x.origin, x.flow.external_ref)
         except KeyError:
