@@ -54,8 +54,8 @@ class MeterReader(object):
 
     def invoice_user(self, user):
         for k, counter in self._counter.items():
-            if k.user == user:
+            if k[0] == user:
                 billing = self._billing[k]
                 u = UsageReport.from_counters(counter, billing)
-                billing.apply(counter)
+                billing.apply_query_counter(counter)
                 yield u

@@ -32,6 +32,12 @@ from datetime import datetime
 LOGLEVEL = os.environ.get('LOGLEVEL', default='INFO').upper()
 logging.basicConfig(level=LOGLEVEL)
 
+
+bbhost = os.environ.get('BLACKBOOK_HOST')
+if bbhost:
+    cat.retrieve_trusted_issuer_key(host=bbhost)
+
+
 app = FastAPI(
     title="XDB API",
     version="0.1.1",  # blackbook integration

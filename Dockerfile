@@ -1,15 +1,13 @@
-FROM python:3 as api
-RUN pip install uvicorn fastapi
-WORKDIR /project/api
+FROM tiangolo/uvicorn-gunicorn-fastapi:python3.10
+WORKDIR /usr/src/xdb/
+COPY requirements.txt /usr/src/xdb/requirements.txt
+RUN pip install --force-reinstall httpcore==0.15
+RUN pip install --no-cache-dir --upgrade -r /usr/src/xdb/requirements.txt
+COPY . /usr/src/xdb/
 
-FROM api as test
-RUN pip install pytest pytest-mock pytest-pythonpath
-# tool for hot reloading tests
-WORKDIR /tmp
-RUN git clone --branch 4.6 https://github.com/eradman/entr.git
-WORKDIR /tmp/entr
-RUN ./configure
-RUN make test
-RUN make install
-WORKDIR /project
+RUN apt install -y unzip
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+RUN unzip awscliv2.zip
+RUN ./aws/install
 
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

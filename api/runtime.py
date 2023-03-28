@@ -12,6 +12,7 @@ from .libs.xdb_catalog import XdbCatalog
 
 # from antelope_manager.authorization import MASTER_ISSUER, open_public_key
 import os
+import logging
 
 
 _ETYPES = ('processes', 'flows', 'quantities', 'lcia_methods', 'contexts')  # this should probably be an import
@@ -88,6 +89,9 @@ def search_entities(query, etype, count=50, **kwargs):
     sargs = {k: v for k, v in filter(lambda x: x[1] is not None, kwargs.items())}
     if etype not in _ETYPES:
         raise HTTPException(404, "Invalid entity type %s" % etype)
+    logging.info('search origin %s/%s ' % (query.origin, etype))
+    for k, v in sargs.items():
+        logging.info('search item |%s|%s|' % (k, v))
     try:
         it = getattr(query, etype)(**sargs)
     except AttributeError:

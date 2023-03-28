@@ -40,8 +40,9 @@ class XdbCatalog(LcCatalog):
         j = [k.dict() for k in self.pubkeys.values()]
         with open(self.pubkeys_file, 'w') as zp:
             json.dump(j, zp)
+        print('Wrote %d pubkeys to %s' % (len(j), self.pubkeys_file))
 
-    def retrieve_trusted_issuer_key(self, host='localhost:80', protocol='http'):
+    def retrieve_trusted_issuer_key(self, host=None, protocol='http'):
         """
         A utility file to pre-seed the xdb PUBKEYS path with a master_issuer public key from a trusted host.
         Obviously the grown-ups have more sophisticated ways to manage public keys.
@@ -50,12 +51,18 @@ class XdbCatalog(LcCatalog):
         :param protocol:
         :return:
         """
+        if host is None:
+            host = os.getenv('BLACKBOOK_HOST')
+        if host is None:
+            raise ValueError('unspecified BLACKBOOK_HOST. cannot proceed.')
         with requests.session() as s:
+            print('Retrieving master issuer key from %s://%s...' % (protocol, host))
             resp = s.get('%s://%s/master_issuer' % (protocol, host))
         j = json.loads(resp.content)
         if isinstance(j['expiry'], str):
             j['expiry'] = datetime.datetime.fromisoformat(j['expiry']).timestamp()
         master_issuer = IssuerKey(**j)
+        print('Storing key for master issuer %s' % master_issuer.issuer)
         self.pubkeys[master_issuer.issuer] = master_issuer
         self.save_pubkeys()
 
