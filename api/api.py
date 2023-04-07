@@ -1,10 +1,10 @@
-from antelope_core.models import (OriginMeta, OriginCount, Entity, FlowEntity, Context, Exchange, ReferenceExchange,
-                                  ExchangeValues, ReferenceValue, DetailedLciaResult, SummaryLciaResult,
-                                  AllocatedExchange, Characterization, Normalizations,
-                                  generate_pydantic_exchanges)
+from antelope.models import (OriginMeta, OriginCount, Entity, FlowEntity, Context, Exchange, ReferenceExchange,
+                             ExchangeValues, ReferenceValue, DetailedLciaResult, SummaryLciaResult,
+                             UnallocatedExchange, AllocatedExchange, Characterization, Normalizations, DirectedFlow,
+                             generate_pydantic_exchanges)
 
 from antelope_core.entities import MetaQuantityUnit
-from antelope_core.auth import AuthorizationGrant, JwtGrant
+from antelope.models.auth import AuthorizationGrant, JwtGrant
 from antelope_core.contexts import NullContext
 
 from .models.response import ServerMeta, PostTerm
@@ -607,6 +607,24 @@ def _get_rx_by_ref_flow(p, ref_flow):
         raise HTTPException(400, detail=f"Process {p} has no references")
 
 
+"""
+@app.get('/{origin}/{process}/{ref_flow}/lcia/{quantity}', response_model=List[AllocatedExchange])
+@app.get('/{origin}/{process}/lcia/{quantity}', response_model=List[AllocatedExchange])
+def get_lci(origin: str, process: str, quantity: str, ref_flow: str = None, quell_biogenic_co2: bool = False,
+            token: Optional[str] = Depends(oauth2_scheme)):
+            ''' # is this already written???
+            '''
+    query = _get_authorized_query(origin, token)
+    qdb = _get_authorized_query('local.qdb', token)
+    q = qdb.get(quantity)
+    p = _get_typed_entity(query, process, 'process')
+    rf = _get_rx_by_ref_flow(p, ref_flow)
+    return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.lci(ref_flow=rf))
+
+
+"""
+
+
 @app.get("/{origin}/{process}/lcia/{quantity}", response_model=List[DetailedLciaResult])  # SHOOP
 @app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=List[DetailedLciaResult])
 @app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=List[DetailedLciaResult])
@@ -628,6 +646,15 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str = No
     rx = _get_rx_by_ref_flow(p, ref_flow)
     lci = list(p.lci(rx))
 
+    ress = _run_process_lcia(qty_org, quantity, token, lci)
+
+    if 'exchange' in pq.authorized_interfaces():
+        return [DetailedLciaResult.from_lcia_result(p, res) for res in ress]
+    else:
+        return [SummaryLciaResult.from_lcia_result(p, res) for res in ress]
+
+
+def _run_process_lcia(qty_org, quantity, token, lci):
     if qty_org is None:
         try:
             qq = cat.lcia_engine.get_canonical(quantity)
@@ -638,7 +665,33 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str = No
         query = _get_authorized_query(qty_org, token)
         qq = query.get_canonical(quantity)
 
-    ress = do_lcia(query, qq, lci)
+    return do_lcia(query, qq, lci)
+
+
+@app.post("/{origin}/{process}/lcia/{quantity}", response_model=List[DetailedLciaResult])  # SHOOP
+@app.post("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=List[DetailedLciaResult])
+@app.post("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=List[DetailedLciaResult])
+@app.post("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=List[DetailedLciaResult])
+def post_observed_remote_lcia(origin: str, process: str, quantity: str, observed: List[DirectedFlow],
+                              ref_flow: str = None, qty_org: str = None,
+                              token: Optional[str] = Depends(oauth2_scheme)):
+    """
+    A variant that performs bg_lcia on a node, excluding observed child flows (supplied in POSTDATA)
+    :param origin:
+    :param process:
+    :param quantity:
+    :param observed: a list of DirectedFlows that get passed to sys_lci
+    :param ref_flow:
+    :param qty_org:
+    :param token:
+    :return:
+    """
+    pq = _get_authorized_query(origin, token)
+    p = pq.get(process)
+    rx = _get_rx_by_ref_flow(p, ref_flow)
+    lci = list(p.unobserved_lci(observed, ref_flow=rx))
+
+    ress = _run_process_lcia(qty_org, quantity, token, lci)
 
     if 'exchange' in pq.authorized_interfaces():
         return [DetailedLciaResult.from_lcia_result(p, res) for res in ress]
@@ -789,6 +842,12 @@ def get_lci(origin: str, process: str, ref_flow: str = None,
     p = _get_typed_entity(query, process, 'process')
     rf = _get_rx_by_ref_flow(p, ref_flow)
     return list(AllocatedExchange.from_inv(x, ref_flow=rf.flow.external_ref) for x in p.lci(ref_flow=rf))
+
+
+@app.post('/{origin}/sys_lci', response_model=List[UnallocatedExchange])
+def sys_lci(origin: str, demand: List[UnallocatedExchange], token: Optional[str] = Depends(oauth2_scheme)):
+    query = _get_authorized_query(origin, token)
+    return list(UnallocatedExchange.from_inv(x) for x in query.sys_lci(demand=demand))
 
 
 @app.get('/{origin}/{process}/{ref_flow}/consumers', response_model=List[AllocatedExchange])

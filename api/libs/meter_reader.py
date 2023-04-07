@@ -17,7 +17,7 @@ being validated.
 The grant needs to be: userid, signer,
 """
 from antelope import ValuesAccessRequired, UpdateAccessRequired
-from antelope_core.auth import AuthorizationGrant
+from antelope.models.auth import AuthorizationGrant
 
 from .models import QueryCounter, BillingCounter, UsageReport
 

@@ -1,9 +1,9 @@
 """
-DEPRECATED-- these models now live in antelope_core
+Non-server-specific models now live in the antelope interface
 """
 from pydantic import BaseModel
 from pydantic.typing import List
-from antelope_core.models import QuantityConversion
+from antelope.models import QuantityConversion
 
 
 class ServerMeta(BaseModel):

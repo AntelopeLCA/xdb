@@ -2,7 +2,7 @@
 import tempfile
 
 from fastapi import HTTPException
-from antelope_core.models import Entity, FlowEntity
+from antelope.models import Entity, FlowEntity
 # from antelope_core.auth import AuthorizationGrant
 from antelope_core.entities import MetaQuantityUnit
 # from antelope_core.catalog import LcCatalog
@@ -109,11 +109,11 @@ def search_entities(query, etype, count=50, **kwargs):
             break
 
 
-def do_lcia(query, qq, lci, locale=None):
+def do_lcia(query, qq, lci, **kwargs):
     if qq.unit == MetaQuantityUnit.unitstring and qq.has_property('impactCategories'):
         qs = [query.get_canonical(k) for k in qq['impactCategories']]
     else:
         qs = [qq]
 
     # check authorization for detailed Lcia
-    return [q.do_lcia(lci, locale=locale) for q in qs]
+    return [q.do_lcia(lci, **kwargs) for q in qs]
