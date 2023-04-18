@@ -19,6 +19,8 @@ from antelope.xdb_tokens import IssuerKey
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.middleware.cors import CORSMiddleware
+
 from jose import JWTError, ExpiredSignatureError, jwt
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -45,6 +47,19 @@ app = FastAPI(
 )
 
 app.include_router(qdb_router)
+
+cors_origins = [
+    'http://localhost',
+    'http://localhost:3000'
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 async def catch_exceptions_middleware(request: Request, call_next):

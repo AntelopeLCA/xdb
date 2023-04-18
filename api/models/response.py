@@ -4,11 +4,15 @@ Non-server-specific models now live in the antelope interface
 from pydantic import BaseModel
 from pydantic.typing import List
 from antelope.models import QuantityConversion
+import pkg_resources
+
+antelope_version = pkg_resources.require('antelope_interface')[0].version
 
 
 class ServerMeta(BaseModel):
     title: str
     version: str
+    antelope_version: str = antelope_version
     description: str
     origins: List[str]
     authorized_origins: List[str]

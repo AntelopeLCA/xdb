@@ -227,9 +227,6 @@ def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], 
     return [DetailedLciaResult.from_lcia_result(p, res) for res in ress]
 
 
-@qdb_router.post('/')
-
-
 @qdb_router.post('/{quantity_id}/factors', response_model=List[PostFactors])
 def post_flow_specs(quantity_id: str, flow_specs: List[FlowSpec]):
     """
