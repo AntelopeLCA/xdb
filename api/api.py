@@ -50,6 +50,8 @@ app.include_router(qdb_router)
 
 cors_origins = [
     'http://localhost',
+    'http://scope3fragmentbrowser.netlify.app',
+    'https://scope3fragmentbrowser.netlify.app',
     'http://localhost:3000'
 ]
 
