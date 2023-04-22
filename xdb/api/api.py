@@ -294,7 +294,7 @@ def _origin_meta(origin, token):
     }
 
 
-@app.get("/{origin}/", response_model=List[OriginMeta])
+@app.get("/{origin}", response_model=List[OriginMeta])
 def get_origin(origin: str, token: Optional[str] = Depends(oauth2_scheme)):
     """
     Why does this return a list? because it's startswith
@@ -501,25 +501,25 @@ def get_entity(origin: str, entity: str,
     return ent
 
 
-@app.get("/{origin}/processes/{entity}/", response_model=Entity)
+@app.get("/{origin}/processes/{entity}", response_model=Entity)
 def get_named_process(origin: str, entity: str,
                       token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     return _get_typed_entity(query, entity, 'process')
 
 
-@app.get("/{origin}/flows/{entity}/", response_model=Entity)
+@app.get("/{origin}/flows/{entity}", response_model=Entity)
 def get_named_flow(origin: str, entity: str,
                    token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     return _get_typed_entity(query, entity, 'flow')
 
 
-@app.get("/{origin}/quantities/{entity}/", response_model=Entity)
-@app.get("/{origin}/flowproperties/{entity}/", response_model=Entity)
-@app.get("/{origin}/flow_properties/{entity}/", response_model=Entity)
-@app.get("/{origin}/lciamethods/{entity}/", response_model=Entity)
-@app.get("/{origin}/lcia_methods/{entity}/", response_model=Entity)
+@app.get("/{origin}/quantities/{entity}", response_model=Entity)
+@app.get("/{origin}/flowproperties/{entity}", response_model=Entity)
+@app.get("/{origin}/flow_properties/{entity}", response_model=Entity)
+@app.get("/{origin}/lciamethods/{entity}", response_model=Entity)
+@app.get("/{origin}/lcia_methods/{entity}", response_model=Entity)
 def get_named_quantity(origin: str, entity: str,
                        token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
