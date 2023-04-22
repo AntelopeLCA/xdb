@@ -35,9 +35,10 @@ LOGLEVEL = os.environ.get('LOGLEVEL', default='INFO').upper()
 logging.basicConfig(level=LOGLEVEL)
 
 
-bbhost = os.environ.get('BLACKBOOK_HOST')
+bbhost = os.environ.get('BLACKBOOK_HOST', None)
 if bbhost:
-    cat.retrieve_trusted_issuer_key(host=bbhost)
+    protocol = os.environ.get('BLACKBOOK_PROTOCOL', 'http')
+    cat.retrieve_trusted_issuer_key(host=bbhost, protocol=protocol)
 
 
 app = FastAPI(

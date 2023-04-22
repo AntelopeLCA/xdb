@@ -2,7 +2,7 @@ FROM tiangolo/uvicorn-gunicorn-fastapi:python3.10
 WORKDIR /usr/src/xdb/
 COPY requirements.txt /usr/src/xdb/requirements.txt
 RUN pip install --force-reinstall httpcore==0.15
-RUN pip install --force-reinstall --no-cache-dir --upgrade -r /usr/src/xdb/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /usr/src/xdb/requirements.txt
 COPY . /usr/src/xdb/
 
 RUN apt install -y unzip
