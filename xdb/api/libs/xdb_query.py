@@ -37,7 +37,7 @@ class XdbQuery(CatalogQuery):
         except AttributeError:
             raise BackgroundSetup('Failed to configure background')
 
-    def _perform_query(self, itype, attrname, exc, *args, strict=False, **kwargs):
+    def _perform_query(self, itype, attrname, exc, *args, **kwargs):
         if attrname not in _AUTH_NOT_REQUIRED:
             if itype in self._grants:
                 grant = self._grants[itype]
@@ -51,4 +51,4 @@ class XdbQuery(CatalogQuery):
                     raise InterfaceNotAuthorized(self.origin, itype)
                 # otherwise pass
 
-        return super(XdbQuery, self)._perform_query(itype, attrname, exc, *args, strict=strict, **kwargs)
+        return super(XdbQuery, self)._perform_query(itype, attrname, exc, *args, **kwargs)

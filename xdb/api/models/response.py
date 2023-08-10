@@ -2,11 +2,14 @@
 Non-server-specific models now live in the antelope interface
 """
 from pydantic import BaseModel
-from pydantic.typing import List
+from typing import List
 from antelope.models import QuantityConversion
 import pkg_resources
 
-antelope_version = pkg_resources.require('antelope_interface')[0].version
+try:
+    antelope_version = pkg_resources.require('antelope_interface')[0].version
+except (ImportError, pkg_resources.DistributionNotFound):
+    antelope_version = 'bleeding-dev'
 
 
 class ServerMeta(BaseModel):

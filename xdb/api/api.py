@@ -471,8 +471,8 @@ def _get_typed_entity(q, entity, etype=None):
         e = q.get(entity)
         if e is None:
             raise HTTPException(404, detail="Entity %s is None" % entity)
-        if e.entity_type == 'quantity':
-            e = cat.get_canonical(e)
+        # if e.entity_type == 'quantity':
+        #     e = cat.get_canonical(e)
     except EntityNotFound:
         raise HTTPException(404, detail="Entity %s not found" % entity)
     if etype is None or e.entity_type == etype:
