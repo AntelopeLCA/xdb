@@ -3,6 +3,7 @@ WORKDIR /usr/src/xdb/
 COPY requirements.txt /usr/src/xdb/requirements.txt
 RUN pip install --force-reinstall httpcore==0.15
 RUN pip install --no-cache-dir --upgrade -r /usr/src/xdb/requirements.txt
+RUN pip install synonym_dict
 COPY . /usr/src/xdb/
 
 RUN apt install -y unzip
