@@ -331,11 +331,11 @@ def _get_origin_counts(origin: str, token: Optional[str]):
             yield {
                 'origin': org,
                 'count': {
-                    'processes': q.count('process'),
-                    'flows': q.count('flow'),
-                    'quantities': q.count('quantity'),
-                    'flowables': len(list(q.flowables())),
-                    'contexts': len(list(q.contexts()))
+                    'process': q.count('process'),
+                    'flow': q.count('flow'),
+                    'quantity': q.count('quantity'),
+                    'flowable': len(list(q.flowables())),
+                    'context': len(list(q.contexts()))
                 }
             }
         except IndexRequired:
