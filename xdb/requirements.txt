@@ -1,8 +1,15 @@
 pydantic>=1.8.2
 fastapi>=0.65.2
+<<<<<<< Updated upstream
 git+https://github.com/AntelopeLCA/core@virtualize#egg=antelope_core
 git+https://github.com/AntelopeLCA/antelope@virtualize#egg=antelope_interface
 git+https://github.com/AntelopeLCA/background@master#egg=antelope_background
+=======
+#git+https://github.com/AntelopeLCA/core#egg=antelope_core
+#git+https://github.com/AntelopeLCA/antelope#egg=antelope_interface
+#git+https://github.com/AntelopeLCA/background#egg=antelope_background
+synonym_dict>=0.2.4
+>>>>>>> Stashed changes
 python-jose>=3.3.0
 setuptools>=65.0.1
 xlrd>=2.0.1
