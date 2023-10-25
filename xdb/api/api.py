@@ -1,5 +1,5 @@
 from antelope.models import (OriginMeta, OriginCount, Entity, FlowEntity, Context, Exchange, ReferenceExchange,
-                             ExchangeValues, ReferenceValue, DetailedLciaResult, SummaryLciaResult,
+                             ExchangeValues, ReferenceValue, LciaResult,
                              UnallocatedExchange, AllocatedExchange, Characterization, Normalizations, DirectedFlow,
                              generate_pydantic_exchanges)
 
@@ -25,7 +25,7 @@ from jose import JWTError, ExpiredSignatureError, jwt
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from typing import List, Optional
+from typing import List, Optional, Dict
 import logging
 import os
 from datetime import datetime
@@ -304,6 +304,21 @@ def get_origin(origin: str, token: Optional[str] = Depends(oauth2_scheme)):
     :return:
     """
     return [_origin_meta(org, token) for org in cat.origins if org.startswith(origin)]
+
+
+@app.get("/{origin}/config", response_model=Dict[str, List[List]])
+@app.get("/{origin}/config/{option}", response_model=Dict[str, List[List]])
+def get_config(origin: str, option: Optional[str] = None, token: Optional[str] = Depends(oauth2_scheme)):
+    _get_authorized_query(origin, token)
+    found_config = dict()
+    for res in cat.resources(origin):
+        found_config.update(res.config)
+    rtn = dict()
+    if option:
+        rtn[option] = list(list(v for v in k) for k in found_config.get(option, [[]]))
+    else:
+        rtn = {opt: list(list(v for v in k) for k in item) for opt, item in found_config.items()}
+    return rtn
 
 
 @app.get("/{origin}/synonyms", response_model=List[str])
@@ -643,10 +658,10 @@ def get_lci(origin: str, process: str, quantity: str, ref_flow: str = None, quel
 """
 
 
-@app.get("/{origin}/{process}/lcia/{quantity}", response_model=List[DetailedLciaResult])  # SHOOP
-@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=List[DetailedLciaResult])
-@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=List[DetailedLciaResult])
-@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=List[DetailedLciaResult])
+@app.get("/{origin}/{process}/lcia/{quantity}", response_model=List[LciaResult])  # SHOOP
+@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=List[LciaResult])
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=List[LciaResult])
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=List[LciaResult])
 def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str = None, qty_org: str = None,
                     token: Optional[str] = Depends(oauth2_scheme)):
     """
@@ -667,9 +682,9 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str = No
     ress = _run_process_lcia(qty_org, quantity, token, lci)
 
     if 'exchange' in pq.authorized_interfaces():
-        return [DetailedLciaResult.from_lcia_result(p, res) for res in ress]
+        return [LciaResult.detailed(p, res) for res in ress]
     else:
-        return [SummaryLciaResult.from_lcia_result(p, res) for res in ress]
+        return [LciaResult.summary(p, res) for res in ress]
 
 
 def _run_process_lcia(qty_org, quantity, token, lci):
@@ -686,10 +701,10 @@ def _run_process_lcia(qty_org, quantity, token, lci):
     return do_lcia(query, qq, lci)
 
 
-@app.post("/{origin}/{process}/lcia/{quantity}", response_model=List[DetailedLciaResult])  # SHOOP
-@app.post("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=List[DetailedLciaResult])
-@app.post("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=List[DetailedLciaResult])
-@app.post("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=List[DetailedLciaResult])
+@app.post("/{origin}/{process}/lcia/{quantity}", response_model=List[LciaResult])  # SHOOP
+@app.post("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=List[LciaResult])
+@app.post("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=List[LciaResult])
+@app.post("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=List[LciaResult])
 def post_observed_remote_lcia(origin: str, process: str, quantity: str, observed: List[DirectedFlow],
                               ref_flow: str = None, qty_org: str = None,
                               token: Optional[str] = Depends(oauth2_scheme)):
@@ -712,9 +727,9 @@ def post_observed_remote_lcia(origin: str, process: str, quantity: str, observed
     ress = _run_process_lcia(qty_org, quantity, token, lci)
 
     if 'exchange' in pq.authorized_interfaces():
-        return [DetailedLciaResult.from_lcia_result(p, res) for res in ress]
+        return [LciaResult.detailed(p, res) for res in ress]
     else:
-        return [SummaryLciaResult.from_lcia_result(p, res) for res in ress]
+        return [LciaResult.summary(p, res) for res in ress]
 
 
 """TO WRITE:

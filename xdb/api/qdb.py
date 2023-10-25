@@ -43,7 +43,7 @@ from typing import List, Optional
 import re
 
 from antelope import EntityNotFound, UnknownOrigin, CatalogRef, ExchangeRef, ConversionReferenceMismatch, NoFactorsFound
-from antelope.models import Entity, Context, Characterization, DetailedLciaResult, UnallocatedExchange, FlowSpec
+from antelope.models import Entity, Context, Characterization, LciaResult, UnallocatedExchange, FlowSpec
 from antelope_core.entities import MetaQuantityUnit, LcFlow, LcProcess
 
 lcia = cat.lcia_engine
@@ -208,7 +208,7 @@ def _lcia_exch_ref(p, x):
     return ExchangeRef(p, flow, x.direction, value=x.value, termination=term)
 
 
-@qdb_router.post('/{quantity_id}/do_lcia', response_model=List[DetailedLciaResult])
+@qdb_router.post('/{quantity_id}/do_lcia', response_model=List[LciaResult])
 def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], locale: str = None,
                         quell_biogenic_co2: bool = False):
     """
@@ -224,7 +224,7 @@ def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], 
     p = LcProcess.new('LCIA POST')
     inv = [_lcia_exch_ref(p, x) for x in exchanges]
     ress = do_lcia(lcia, q, inv, locale=locale, quell_biogenic_co2=quell_biogenic_co2)
-    return [DetailedLciaResult.from_lcia_result(p, res) for res in ress]
+    return [LciaResult.detailed(p, res) for res in ress]
 
 
 @qdb_router.post('/{quantity_id}/factors', response_model=List[PostFactors])
