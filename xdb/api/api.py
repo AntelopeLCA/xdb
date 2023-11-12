@@ -156,7 +156,7 @@ def get_token_grants(token: Optional[str]):
     except JWTError:
         raise HTTPException(401, detail='Token failed verification')
     # however, we also need to test whether the issuer is trusted with the requested origin(s). otherwise one
-    # compromised key would allow a user to issue a token for any origin
+    # compromised key would allow a user to issue a token for any origin (TODO!)
     if payload['iss'] == MASTER_ISSUER:
         return _get_all_grants(user=payload['sub'])
     jwt_grant = JwtGrant(**valid_payload)
@@ -271,39 +271,29 @@ def _get_authorized_query(origin, token):
     return q
 
 
-@app.get("/origins", response_model=List[str])
+@app.get("/origins", response_model=List[OriginMeta])
 def get_origins(token: Optional[str] = Depends(oauth2_scheme)):
-    auth_grants = get_token_grants(token)
-    # all_origins = PUBLIC_ORIGINS + list(set(k.origin for k in auth_grants))
-    all_origins = list(set(k.origin for k in auth_grants))
-    return [org for org in all_origins if cat.known_origin(org)]
-
-
-def _origin_meta(origin, token):
     """
-    It may well be that OriginMeta needs to include config information (at minimum, context hints)- in which
-    case the meta object should be constructed from resources, not from blackbox queries. we shall see
-    :param origin:
+    The "origins" route should return a list of all the origins the authorization token allows the user to see,
+    in OriginMeta form.
+    :param token:
     :return:
     """
-    is_lcia = _get_authorized_query(origin, token).is_lcia_engine()
-    return {
-        "origin": origin,
-        "is_lcia_engine": is_lcia,
-        "interfaces": list(set([k.split(':')[1] for k in cat.interfaces if k.startswith(origin)]))
-    }
+    auth_grants = get_token_grants(token)
+
+    return [cat.query(org, grants=auth_grants, cache=False).origin_meta(org) for org in
+            sorted(set(k.origin for k in auth_grants))]
 
 
-@app.get("/{origin}", response_model=List[OriginMeta])
+@app.get("/{origin}", response_model=OriginMeta)
 def get_origin(origin: str, token: Optional[str] = Depends(oauth2_scheme)):
     """
-    Why does this return a list? because it's startswith
-    TODO: reconcile the AVAILABLE origins with the CONFIGURED origins and the AUTHORIZED origins
     :param origin:
     :param token:
     :return:
     """
-    return [_origin_meta(org, token) for org in cat.origins if org.startswith(origin)]
+    q = _get_authorized_query(origin, token)
+    return q.origin_meta(origin)
 
 
 @app.get("/{origin}/config", response_model=Dict[str, List[List]])
