@@ -35,7 +35,7 @@ exchanges.  The locale of the conversion is reported in the QRResult.
 
 """
 
-from api.models.response import QdbMeta, PostFactors
+from .models.response import QdbMeta
 from .runtime import cat, search_entities, do_lcia
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional
@@ -43,7 +43,7 @@ from typing import List, Optional
 import re
 
 from antelope import EntityNotFound, UnknownOrigin, CatalogRef, ExchangeRef, ConversionReferenceMismatch, NoFactorsFound
-from antelope.models import Entity, Context, Characterization, LciaResult, UnallocatedExchange, FlowSpec
+from antelope.models import Entity, Context, Characterization, LciaResult, UnallocatedExchange, FlowSpec, FlowFactors
 from antelope_core.entities import MetaQuantityUnit, LcFlow, LcProcess
 
 lcia = cat.lcia_engine
@@ -202,9 +202,14 @@ def _lcia_exch_ref(p, x):
             # no ref, so nothing to anchor the flow to- we use it just for the lookup
             flow = LcFlow.new(x.flow.flowable, ref_q,
                               context=tuple(x.flow.context), locale=x.flow.locale)
+    except EntityNotFound:
+        return None
 
     except UnknownOrigin:
-        ref_q = lcia.get_canonical(x.flow.quantity_ref)
+        try:
+            ref_q = lcia.get_canonical(x.flow.quantity_ref)
+        except EntityNotFound:
+            return None
         flow = LcFlow.new(x.flow.flowable, ref_q,
                           context=tuple(x.flow.context), locale=x.flow.locale)
 
@@ -229,12 +234,12 @@ def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], 
     """
     q = _get_canonical(None, quantity_id)
     p = LcProcess.new('LCIA POST')
-    inv = [_lcia_exch_ref(p, x) for x in exchanges]
+    inv = list(filter(None, (_lcia_exch_ref(p, x) for x in exchanges)))
     ress = do_lcia(lcia, q, inv, locale=locale, quell_biogenic_co2=quell_biogenic_co2)
     return [LciaResult.detailed(p, res) for res in ress]
 
 
-@qdb_router.post('/{quantity_id}/factors', response_model=List[PostFactors])
+@qdb_router.post('/{quantity_id}/flow_specs', response_model=List[FlowFactors])
 def post_flow_specs(quantity_id: str, flow_specs: List[FlowSpec]):
     """
 
@@ -253,14 +258,14 @@ def post_flow_specs(quantity_id: str, flow_specs: List[FlowSpec]):
     else:
         qs = [qq]
     for fs in flow_specs:
-        res = PostFactors(flow_id=fs.external_ref, context=fs.context, factors=[])
+        res = FlowFactors(origin=str(fs.origin), external_ref=str(fs.external_ref), context=fs.context, factors=[])
         for q in qs:
             """
             This smacks of DRY too
             """
             try:
                 qr = q.quantity_relation(fs.flowable, fs.quantity_ref, tuple(fs.context), fs.locale)
-            except (ConversionReferenceMismatch, NoFactorsFound):
+            except (ConversionReferenceMismatch, NoFactorsFound, EntityNotFound):
                 continue
             res.add_qr_result(qr)
         lookup_results.append(res)
