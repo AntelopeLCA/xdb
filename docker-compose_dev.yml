@@ -8,8 +8,9 @@ services:
         volumes:
             # xdb source code
             - ./xdb/:/usr/src/xdb/
-            - ./antelope/:/usr/src/xdb/antelope/
-            - ./core/antelope_core/:/usr/src/xdb/antelope_core/
+            - ../antelope/:/usr/src/xdb/antelope/
+            - ../core/antelope_core/:/usr/src/xdb/antelope_core/
+            - ../background/antelope_core/:/usr/src/xdb/antelope_background/
             # catalog root - this does not require a bind mount but might be useful for debugging
             - /data/LCI/docker_8000/:/xdb_8000/
             # AWS data root - this could be a volume with no bind mount on the AMI- unless we want to share data

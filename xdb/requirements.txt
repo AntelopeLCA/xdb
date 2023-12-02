@@ -1,6 +1,6 @@
 #git+https://github.com/AntelopeLCA/core@0.3#egg=antelope_core
 #git+https://github.com/AntelopeLCA/antelope@d3c6dec3c6762726516c111c1410cc51ec8bc4b0#egg=antelope_interface
-antelope_background==0.2.1
+#antelope_background==0.2.1
 annotated-types==0.6.0
 anyio==3.7.1
 certifi==2023.11.17

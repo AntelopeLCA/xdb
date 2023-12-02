@@ -292,7 +292,14 @@ def get_origin(origin: str, token: Optional[str] = Depends(oauth2_scheme)):
     :param token:
     :return:
     """
-    q = _get_authorized_query(origin, token)
+    try:
+        q = _get_authorized_query(origin, token)
+    except UnknownOrigin:
+        g = get_token_grants(token)
+        if len(g) == 0:
+            raise HTTPException(status_code=400, detail="Bad Scammer")
+        else:
+            raise HTTPException(status_code=404, detail="Origin %s not found" % origin)
     return q.origin_meta(origin)
 
 
