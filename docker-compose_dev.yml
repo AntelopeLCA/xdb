@@ -1,0 +1,48 @@
+version: "3"
+services:
+    # XDB API config
+    xdb:
+        container_name: xdb
+        restart: always
+        build: ./xdb
+        volumes:
+            # xdb source code
+            - ./xdb/:/usr/src/xdb/
+            - ./antelope/:/usr/src/xdb/antelope/
+            - ./core/antelope_core/:/usr/src/xdb/antelope_core/
+            # catalog root - this does not require a bind mount but might be useful for debugging
+            - /data/LCI/docker_8000/:/xdb_8000/
+            # AWS data root - this could be a volume with no bind mount on the AMI- unless we want to share data
+            - /data/LCI/aws-data/:/aws_data/
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.xdb.rule=Host(`ca.vault.lc`)"  # must be set at deployment
+            - "traefik.http.routers.xdb.entrypoints=websecure"
+            - "traefik.http.routers.xdb.tls=true"
+            - "traefik.http.routers.xdb.tls.certresolver=xdb"
+
+        environment:
+            MASTER_ISSUER: ANTELOPE_AUTHORITY
+            XDB_CATALOG_ROOT: /xdb_8000
+            XDB_DATA_ROOT: /aws_data
+            BLACKBOOK_PROTOCOL: https
+            BLACKBOOK_HOST: sb.vault.lc  # must be edited for live deployment; must correspond to MASTER_ISSUER
+    traefik:
+        image: "traefik:v2.9"
+        container_name: "traefik"
+        command:
+            #- "--log.level=DEBUG"
+            - "--api.insecure=true"
+            - "--providers.docker=true"
+            - "--providers.docker.exposedbydefault=false"
+            - "--entrypoints.websecure.address=:443"
+            - "--certificatesresolvers.xdb.acme.tlschallenge=true"
+            #- "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+            - "--certificatesresolvers.xdb.acme.email=info@vault.lc"
+            - "--certificatesresolvers.xdb.acme.storage=/letsencrypt/acme.json"
+        ports:
+            - "443:443"
+            #- "8080:8080"
+        volumes:
+            - "./letsencrypt:/letsencrypt"
+            - "/var/run/docker.sock:/var/run/docker.sock:ro"
