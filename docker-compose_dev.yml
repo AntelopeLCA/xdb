@@ -8,9 +8,9 @@ services:
         volumes:
             # xdb source code
             - ./xdb/:/usr/src/xdb/
-            - ../antelope/:/usr/src/xdb/antelope/
+            - ../antelope/antelope/:/usr/src/xdb/antelope/
             - ../core/antelope_core/:/usr/src/xdb/antelope_core/
-            - ../background/antelope_core/:/usr/src/xdb/antelope_background/
+            - ../background/antelope_background/:/usr/src/xdb/antelope_background/
             # catalog root - this does not require a bind mount but might be useful for debugging
             - /data/LCI/docker_8000/:/xdb_8000/
             # AWS data root - this could be a volume with no bind mount on the AMI- unless we want to share data
@@ -23,7 +23,7 @@ services:
             - "traefik.http.routers.xdb.tls.certresolver=xdb"
 
         environment:
-            MASTER_ISSUER: ANTELOPE_AUTHORITY
+            MASTER_ISSUER: ANTELOPE_AUTHORITY  # should be edited for live deployment
             XDB_CATALOG_ROOT: /xdb_8000
             XDB_DATA_ROOT: /aws_data
             BLACKBOOK_PROTOCOL: https
