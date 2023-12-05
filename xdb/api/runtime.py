@@ -9,6 +9,7 @@ from antelope_core.entities import MetaQuantityUnit
 from antelope_core.file_accessor import ResourceLoader
 
 from .libs.xdb_catalog import XdbCatalog
+from .libs.xdb_s3_sync import XdbS3Sync
 
 # from antelope_manager.authorization import MASTER_ISSUER, open_public_key
 import os
@@ -42,12 +43,12 @@ if CAT_ROOT is None:
     # this really doesn't work because the tempdir could never have the PUBKEYS stored.
     CAT_ROOT = tempfile.TemporaryDirectory().name
 
-DATA_ROOT = os.getenv('XDB_DATA_ROOT')
+DATA_ROOT = os.path.abspath(os.getenv('XDB_DATA_ROOT'))
 DATA_AWS_BUCKET = 'antelope-data'
 
 
 def lca_init():
-    _cat = XdbCatalog(CAT_ROOT, strict_clookup=False, quell_biogenic_co2=True)
+    _cat = XdbCatalog(CAT_ROOT, strict_clookup=False)
     # do config here
 
     return _cat
@@ -57,14 +58,12 @@ cat = lca_init()
 
 
 def _aws_sync_origin(origin):
-    """
-    Uses an unsafe system command to sync the s3 bucket to the data directory for the requested origin.
-    assumes s3 permissions are established and aws-cli is installed. and that the path exists in the bucket.
-    :param origin:
-    :return:
-    """
+    s3_client = XdbS3Sync(DATA_AWS_BUCKET)
+
     target_dir = os.path.join(DATA_ROOT, origin)
-    os.system(f"aws s3 sync s3://{DATA_AWS_BUCKET}/{origin} {target_dir}")
+    os.makedirs(target_dir, exist_ok=True)
+
+    s3_client.retrieve_s3_folder(origin, DATA_ROOT)
 
 
 def init_origin(origin, reset=False):
