@@ -36,7 +36,7 @@ class XdbS3Sync(object):
                 updated_kwargs["ContinuationToken"] = next_token
 
             response = self.s3_client.list_objects_v2(**updated_kwargs)
-            contents = response.get("Contents")
+            contents = response.get("Contents", [])
 
             for result in contents:
                 key = result.get("Key")
