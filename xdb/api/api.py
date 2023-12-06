@@ -41,9 +41,12 @@ if bbhost:
     cat.retrieve_trusted_issuer_key(host=bbhost, protocol=protocol)
 
 
+XDB_VERSION = "0.1.2"
+
+
 app = FastAPI(
     title="XDB API",
-    version="0.1.1",  # blackbook integration
+    version=XDB_VERSION,  # blackbook integration
     description="API for the exchange database"
 )
 
