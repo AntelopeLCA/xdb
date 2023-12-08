@@ -63,6 +63,7 @@ def _aws_sync_origin(origin):
     target_dir = os.path.join(DATA_ROOT, origin)
     os.makedirs(target_dir, exist_ok=True)
 
+    logging.info('Pulling origin %s from S3 into %s' % (origin, DATA_ROOT))
     s3_client.retrieve_s3_folder(origin, DATA_ROOT)
 
 
