@@ -28,7 +28,7 @@ from starlette.responses import JSONResponse
 from typing import List, Optional, Dict
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 LOGLEVEL = os.environ.get('LOGLEVEL', default='INFO').upper()
@@ -51,6 +51,8 @@ app = FastAPI(
 )
 
 app.include_router(qdb_router)
+
+logging.warning("""\n\n\nxdb system [%s] STARTUP %s\n\n""" % (XDB_VERSION, datetime.now(tz=timezone.utc)))
 
 cors_origins = [
     'http://localhost',
