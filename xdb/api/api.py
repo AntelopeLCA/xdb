@@ -25,7 +25,7 @@ from jose import JWTError, ExpiredSignatureError, jwt
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import logging
 import os
 from datetime import datetime, timezone
@@ -53,6 +53,8 @@ app = FastAPI(
 app.include_router(qdb_router)
 
 logging.warning("""\n\n\nxdb system [%s] STARTUP %s\n\n""" % (XDB_VERSION, datetime.now(tz=timezone.utc)))
+
+
 
 cors_origins = [
     'http://localhost',
@@ -502,6 +504,7 @@ def get_entity(origin: str, entity: str,
                token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     e = _get_typed_entity(query, entity)
+    '''
     if e.entity_type == 'process':
         ent = Entity.from_entity(e)
         ent.properties[e.reference_field] = [ReferenceExchange.from_exchange(x) for x in e.reference_entity]
@@ -514,7 +517,9 @@ def get_entity(origin: str, entity: str,
         try:
             ent.properties[p] = e[p]
         except KeyError as err:
-            ent.properties[p] = err
+            ent.properties[p] = err.args[0]
+    '''
+    ent = Entity.from_entity(e)  # all the above is now folded into here
     return ent
 
 
@@ -522,14 +527,14 @@ def get_entity(origin: str, entity: str,
 def get_named_process(origin: str, entity: str,
                       token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
-    return _get_typed_entity(query, entity, 'process')
+    return Entity.from_entity(_get_typed_entity(query, entity, 'process'))
 
 
-@app.get("/{origin}/flows/{entity}", response_model=Entity)
+@app.get("/{origin}/flows/{entity}", response_model=FlowEntity)
 def get_named_flow(origin: str, entity: str,
                    token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
-    return _get_typed_entity(query, entity, 'flow')
+    return FlowEntity.from_flow(_get_typed_entity(query, entity, 'flow'))
 
 
 @app.get("/{origin}/quantities/{entity}", response_model=Entity)
@@ -540,7 +545,7 @@ def get_named_flow(origin: str, entity: str,
 def get_named_quantity(origin: str, entity: str,
                        token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
-    return _get_typed_entity(query, entity, 'quantity')
+    return Entity.from_entity(_get_typed_entity(query, entity, 'quantity'))
 
 
 @app.get("/{origin}/{entity}/reference")  # SHOOP
@@ -593,11 +598,18 @@ def get_uuid(origin, entity, token: Optional[str] = Depends(oauth2_scheme)):
     return ent.uuid
 
 
-@app.get("/{origin}/{entity}/properties", response_model=List[str])  # SHOOP
+@app.get("/{origin}/{entity}/properties", response_model=Dict[str, Any])  # SHOOP
 def get_properties(origin, entity, token: Optional[str] = Depends(oauth2_scheme)):
+    """
+    H
+    :param origin:
+    :param entity:
+    :param token:
+    :return:
+    """
     query = _get_authorized_query(origin, token)
     ent = _get_typed_entity(query, entity)
-    return list(ent.properties())
+    return {k: ent[k] for k in ent.properties()}
 
 
 @app.get("/{origin}/{entity}/doc/{item}")  # SHOOP
