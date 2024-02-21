@@ -71,8 +71,8 @@ class XdbCatalog(LcCatalog):
             self.delete_resource(res)
         self._queries.pop(origin, None)
 
-    def __init__(self, *args, **kwargs):
-        super(XdbCatalog, self).__init__(*args, **kwargs)
+    def __init__(self, *args, strict_clookup=False, **kwargs):
+        super(XdbCatalog, self).__init__(*args, strict_clookup=strict_clookup, **kwargs)
         self.meter = MeterReader()
         self.load_pubkeys()
 
