@@ -41,7 +41,14 @@ if bbhost:
     cat.retrieve_trusted_issuer_key(host=bbhost, protocol=protocol)
 
 
-XDB_VERSION = "0.1.2"
+XDB_VERSION = "0.1.3"
+'''
+Version History
+0.1.3 - 2024-03-21 - test live USLCI with local + remote LCIA
+
+0.1.2 - urrrrr...
+
+'''
 
 
 app = FastAPI(
