@@ -9,7 +9,7 @@ from antelope_core.contexts import NullContext
 
 from .models.response import ServerMeta, PostTerm
 
-from .runtime import cat, search_entities, do_lcia, init_origin, MASTER_ISSUER
+from .runtime import cat, search_entities, do_lcia, init_origin, MASTER_ISSUER, canonical_cf
 from .qdb import qdb_router
 
 from .libs.xdb_query import InterfaceNotAuthorized
@@ -386,11 +386,17 @@ def search_processes(origin: str,
 def search_flows(origin: str,
                  name: Optional[str] = None,
                  casnumber: Optional[str] = None,
-                 token: Optional[str] = Depends(oauth2_scheme)):
+                 token: Optional[str] = Depends(oauth2_scheme),
+                 count: Optional[int] = 50,
+                 context: Optional[str] = None):
     kwargs = {'name': name,
               'casnumber': casnumber}
     query = _get_authorized_query(origin, token)
-    return list(search_entities(query, 'flows', **kwargs))
+    fs = list(search_entities(query, 'flows', count=count, **kwargs))
+    if context is not None:
+        cx = query.get_context(context)
+        return [f for f in fs if f.context == cx]
+    return fs
 
 
 @app.get("/{origin}/quantities", response_model=List[Entity])
@@ -449,17 +455,29 @@ def get_contexts(origin: str, elementary: bool = None, sense=None, parent=None,
     return list(cxs)
 
 
-@app.get("/{origin}/contexts/{context}", response_model=Context)
-def get_context(origin: str, context: str,
-                token: Optional[str] = Depends(oauth2_scheme)):
-    q = _get_authorized_query(origin, token)
+def _get_a_context(q, context: str):
     naive_cx = q.get_context(context)
     if naive_cx is NullContext:
         wise_cx = cat.lcia_engine[context]
         if wise_cx is NullContext:
             raise HTTPException(404, detail=f'context {context} not recognized')
-        return Context.from_context(wise_cx)
-    return Context.from_context(naive_cx)
+        return wise_cx
+    return naive_cx
+
+
+@app.get("/{origin}/contexts/{context}", response_model=Context)
+def get_context(origin: str, context: str,
+                token: Optional[str] = Depends(oauth2_scheme)):
+    q = _get_authorized_query(origin, token)
+    return Context.from_context(_get_a_context(q, context))
+
+
+@app.get("/{origin}/contexts/{context}/flows", response_model=List[FlowEntity])
+def get_context(origin: str, context: str,
+                token: Optional[str] = Depends(oauth2_scheme)):
+    q = _get_authorized_query(origin, token)
+    cx = _get_a_context(q, context)
+    return [FlowEntity.from_flow(e) for e in q.flows() if e.context == cx]
 
 
 @app.get("/{origin}/{flow}/targets", response_model=List[Entity])
@@ -975,7 +993,7 @@ def get_flow_profile(origin: str, flow_id: str, quantity: str = None, context: s
         quantity = _get_typed_entity(query, quantity, 'quantity')
     if context is not None:
         context = query.get_context(context)
-    return [Characterization.from_cf(cf) for cf in f.profile(quantity=quantity, context=context)]
+    return [canonical_cf(cf) for cf in f.profile(quantity=quantity, context=context)]
 
 
 @app.get('/{origin}/{quantity_id}/norm', response_model=Normalizations)
@@ -988,10 +1006,10 @@ def get_quantity_norms(origin: str, quantity_id: str,
 
 @app.get('/{origin}/{quantity_id}/factors', response_model=List[Characterization])
 @app.get('/{origin}/{quantity_id}/factors/{flowable}', response_model=List[Characterization])
-def get_quantity_norms(origin: str, quantity_id: str, flowable: str = None,
+def get_quantity_factors(origin: str, quantity_id: str, flowable: str = None,
                        token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     q = _get_typed_entity(query, quantity_id, 'quantity')
     enum = q.factors(flowable=flowable)
 
-    return list(Characterization.from_cf(cf) for cf in enum)
+    return list(canonical_cf(cf) for cf in enum)

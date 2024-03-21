@@ -2,7 +2,7 @@
 import tempfile
 
 from fastapi import HTTPException
-from antelope.models import Entity, FlowEntity
+from antelope.models import Entity, FlowEntity, Characterization
 # from antelope_core.auth import AuthorizationGrant
 from antelope_core.entities import MetaQuantityUnit
 # from antelope_core.catalog import LcCatalog
@@ -117,3 +117,16 @@ def do_lcia(query, qq, lci, **kwargs):
 
     # check authorization for detailed Lcia
     return [q.do_lcia(lci, **kwargs) for q in qs]
+
+
+def canonical_cf(cf):
+    context = list(cat.lcia_engine[cf.context])
+    ch = Characterization(origin=cf.origin, flowable=cf.flowable,
+                          ref_quantity=cf.ref_quantity.external_ref, ref_unit=cf.ref_quantity.unit,
+                          query_quantity=cf.quantity.external_ref, query_unit=cf.quantity.unit,
+                          context=context, value=dict())
+    for loc in cf.locations:
+        ch.value[loc] = cf[loc]
+    return ch
+
+

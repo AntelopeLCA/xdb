@@ -34,9 +34,10 @@ inputs (e.g. context + locale), not the canonical/GLO values, so that the client
 exchanges.  The locale of the conversion is reported in the QRResult.
 
 """
+import logging
 
 from .models.response import QdbMeta
-from .runtime import cat, search_entities, do_lcia
+from .runtime import cat, search_entities, do_lcia, canonical_cf
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional
 
@@ -47,6 +48,7 @@ from antelope.models import Entity, Context, Characterization, LciaResult, Unall
 from antelope_core.entities import MetaQuantityUnit, LcFlow, LcProcess
 
 lcia = cat.lcia_engine
+
 
 qdb_router = APIRouter(prefix="/qdb")
 
@@ -159,7 +161,8 @@ def factors_for_quantity(quantity: str, origin: str = None, flowable: str = None
     q = _get_canonical(origin, quantity)
     if context is not None:
         context = lcia[context]
-    return [Characterization.from_cf(cf) for cf in lcia.factors_for_quantity(q, flowable=flowable, context=context)]
+    logging.warning('bally hoo')
+    return [canonical_cf(cf) for cf in lcia.factors_for_quantity(q, flowable=flowable, context=context)]
 
 
 @qdb_router.get("/{quantity}", response_model=Entity)
