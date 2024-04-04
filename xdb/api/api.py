@@ -62,10 +62,9 @@ app.include_router(qdb_router)
 logging.warning("""\n\n\nxdb system [%s] STARTUP %s\n\n""" % (XDB_VERSION, datetime.now(tz=timezone.utc)))
 
 
-
 cors_origins = [
     'http://localhost',
-    'http://scope3fragmentbrowser.netlify.app',
+    'https://newbackend--scope3fragmentbrowser.netlify.app',
     'https://scope3fragmentbrowser.netlify.app',
     'http://localhost:3001',
     'http://localhost:3000'
@@ -399,10 +398,9 @@ def search_flows(origin: str,
     kwargs = {'name': name,
               'casnumber': casnumber}
     query = _get_authorized_query(origin, token)
-    fs = list(search_entities(query, 'flows', count=count, **kwargs))
     if context is not None:
-        cx = query.get_context(context)
-        return [f for f in fs if f.context == cx]
+        context = query.get_context(context)
+    fs = list(search_entities(query, 'flows', count=count, context=context, **kwargs))
     return fs
 
 

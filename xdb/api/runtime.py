@@ -85,7 +85,7 @@ def init_origin(origin, reset=False):
     return rl.load_resources(cat, origin, check=True)
 
 
-def search_entities(query, etype, count=50, **kwargs):
+def search_entities(query, etype, count=50, context=None, **kwargs):
     sargs = {k: v for k, v in filter(lambda x: x[1] is not None, kwargs.items())}
     if etype not in _ETYPES:
         raise HTTPException(404, "Invalid entity type %s" % etype)
@@ -101,6 +101,12 @@ def search_entities(query, etype, count=50, **kwargs):
         if not e.origin.startswith(query.origin):  # return more-specific
             continue
         if etype == 'flows':
+            if context:
+                if e.context:
+                    if not e.context.is_subcompartment(context):
+                        continue
+                else:
+                    continue
             yield FlowEntity.from_flow(e, **sargs)
         else:
             yield Entity.from_entity(e, **sargs)
