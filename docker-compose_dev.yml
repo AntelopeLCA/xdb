@@ -8,7 +8,7 @@ services:
         volumes:
             # xdb source code
             - ./xdb/:/usr/src/xdb/
-            - ../antelope/antelope/:/usr/src/xdb/antelope/
+            - ../antelope/src/antelope/:/usr/src/xdb/antelope/
             - ../core/antelope_core/:/usr/src/xdb/antelope_core/
             - ../background/antelope_background/:/usr/src/xdb/antelope_background/
             # catalog root - this does not require a bind mount but might be useful for debugging
