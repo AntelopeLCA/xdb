@@ -45,11 +45,18 @@ if CAT_ROOT is None:
 
 DATA_ROOT = os.path.abspath(os.getenv('XDB_DATA_ROOT'))
 DATA_AWS_BUCKET = 'antelope-data'
+PRE_LOAD = ('lcia.traci.2.1', )
 
 
 def lca_init():
     _cat = XdbCatalog(CAT_ROOT, strict_clookup=False)
     # do config here
+
+    # pre-load for general usefulness
+    for p in PRE_LOAD:
+        if p in _cat.origins:
+            _cat.pre_load_query(p)
+            list(_cat.query(p).lcia_methods())
 
     return _cat
 

@@ -4,7 +4,8 @@ An LcCatalog subclass that yields XdbQueries
 
 from antelope.xdb_tokens import IssuerKey
 from antelope_core import LcCatalog
-from .xdb_query import XdbQuery
+from antelope import UnknownOrigin
+from .xdb_query import XdbQuery, CatalogQuery
 from .meter_reader import MeterReader
 
 import os
@@ -47,7 +48,6 @@ class XdbCatalog(LcCatalog):
         A utility file to pre-seed the xdb PUBKEYS path with a master_issuer public key from a trusted host.
         Obviously the grown-ups have more sophisticated ways to manage public keys.
         :param host:
-        :param path:
         :param protocol:
         :return:
         """
@@ -77,3 +77,19 @@ class XdbCatalog(LcCatalog):
         self.load_pubkeys()
 
     _query_type = XdbQuery
+
+    def pre_load_query(self, origin, **kwargs):
+        """
+        Pre-loaded queries will be available to all users without authentication
+        :param origin:
+        :return:
+        """
+        if origin in self.origins:
+            if origin in self._queries:
+                return
+            else:
+                try:
+                    self._resolver.resolve(origin, strict=True)
+                except UnknownOrigin:
+                    return
+                self._queries[origin] = CatalogQuery(origin, catalog=self, **kwargs)
