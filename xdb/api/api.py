@@ -704,6 +704,31 @@ def get_lci(origin: str, process: str, quantity: str, ref_flow: str = None, quel
 """
 
 
+@app.get("/{origin}/{process}/lcia/{quantity}/total", response_model=List[float])  # SHOOP
+@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}/total", response_model=List[float])
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}/total", response_model=List[float])
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}/total", response_model=List[float])
+def get_remote_lcia_total(origin: str, process: str, quantity: str, ref_flow: str = None, qty_org: str = None,
+                          token: Optional[str] = Depends(oauth2_scheme)):
+    """
+
+    :param origin:
+    :param process:
+    :param quantity:
+    :param ref_flow: [None] if process has multiple references, one must be specified
+    :param qty_org: [None] if
+    :param token:
+    :return:
+    """
+    pq = _get_authorized_query(origin, token)
+    p = pq.get(process)
+    rx = _get_rx_by_ref_flow(p, ref_flow)
+    lci = list(p.lci(rx))
+
+    ress = _run_process_lcia(qty_org, quantity, token, lci)
+    return [res.total() for res in ress]
+
+
 @app.get("/{origin}/{process}/lcia/{quantity}", response_model=List[LciaResult])  # SHOOP
 @app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=List[LciaResult])
 @app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=List[LciaResult])
@@ -742,34 +767,9 @@ def _run_process_lcia(qty_org, quantity, token, lci):
         query = _get_authorized_query(qq.origin, token)
     else:
         query = _get_authorized_query(qty_org, token)
-        qq = query.get_canonical(quantity)
+        qq = query.get(quantity)
 
     return do_lcia(query, qq, lci)
-
-
-@app.get("/{origin}/{process}/lcia/{quantity}/total", response_model=List[float])  # SHOOP
-@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}/total", response_model=List[float])
-@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}/total", response_model=List[float])
-@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}/total", response_model=List[float])
-def get_remote_lcia_total(origin: str, process: str, quantity: str, ref_flow: str = None, qty_org: str = None,
-                          token: Optional[str] = Depends(oauth2_scheme)):
-    """
-
-    :param origin:
-    :param process:
-    :param quantity:
-    :param ref_flow: [None] if process has multiple references, one must be specified
-    :param qty_org: [None] if
-    :param token:
-    :return:
-    """
-    pq = _get_authorized_query(origin, token)
-    p = pq.get(process)
-    rx = _get_rx_by_ref_flow(p, ref_flow)
-    lci = list(p.lci(rx))
-
-    ress = _run_process_lcia(qty_org, quantity, token, lci)
-    return [res.total() for res in ress]
 
 
 @app.post("/{origin}/{process}/lcia/{quantity}", response_model=List[LciaResult])  # SHOOP
@@ -834,9 +834,18 @@ def get_exchange_values(origin, process, flow: str,
     return list(ExchangeValues.from_ev(x) for x in exch)
 
 
-@app.get("/{origin}/{process}/inventory", response_model=List[AllocatedExchange])
+@app.get("/{origin}/{process}/inventory", response_model=List[UnallocatedExchange])
+def get_unallocated_inventory(origin, process,
+                              token: Optional[str] = Depends(oauth2_scheme)):
+    query = _get_authorized_query(origin, token)
+    p = _get_typed_entity(query, process, 'process')
+
+    inv = p.inventory()
+    return list(UnallocatedExchange.from_inv(x) for x in inv)
+
+
 @app.get("/{origin}/{process}/{ref_flow}/inventory", response_model=List[AllocatedExchange])
-def get_inventory(origin, process, ref_flow: str = None,
+def get_inventory(origin, process, ref_flow: str,
                   token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     p = _get_typed_entity(query, process, 'process')
