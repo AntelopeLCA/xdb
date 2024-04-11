@@ -113,11 +113,12 @@ def search_lcia_methods(name: Optional[str] = None,
 
 @qdb_router.get("/lcia", response_model=List[Entity])
 def get_meta_quantities(name: Optional[str] = None,
-                        method: Optional[str] = None):
+                        method: Optional[str] = None,
+                        count: Optional[int] = 50):
     kwargs = {'name': name,
               'method': method}
     query = cat.query('local.qdb')
-    return list(search_entities(query, 'quantities', unit=MetaQuantityUnit.unitstring, **kwargs))
+    return list(search_entities(query, 'quantities', unit=MetaQuantityUnit.unitstring, count=count, **kwargs))
 
 
 @qdb_router.get("/contexts", response_model=List[Context])

@@ -379,13 +379,15 @@ def search_processes(origin: str,
                      classifications: Optional[str] = None,
                      spatialscope: Optional[str] = None,
                      comment: Optional[str] = None,
+                     count: Optional[int] = 50,
+                     offset: Optional[int] = 0,
                      token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     kwargs = {'name': name,
               'classifications': classifications,
               'spatialscope': spatialscope,
               'comment': comment}
-    return list(search_entities(query, 'processes', **kwargs))
+    return list(search_entities(query, 'processes', count=count, offset=offset, **kwargs))
 
 
 @app.get("/{origin}/flows", response_model=List[FlowEntity])
@@ -394,13 +396,14 @@ def search_flows(origin: str,
                  casnumber: Optional[str] = None,
                  token: Optional[str] = Depends(oauth2_scheme),
                  count: Optional[int] = 50,
+                 offset: Optional[int] = 0,
                  context: Optional[str] = None):
     kwargs = {'name': name,
               'casnumber': casnumber}
     query = _get_authorized_query(origin, token)
     if context is not None:
         context = query.get_context(context)
-    fs = list(search_entities(query, 'flows', count=count, context=context, **kwargs))
+    fs = list(search_entities(query, 'flows', count=count, offset=offset, context=context, **kwargs))
     return fs
 
 
@@ -408,11 +411,13 @@ def search_flows(origin: str,
 def search_quantities(origin: str,
                       name: Optional[str] = None,
                       referenceunit: Optional[str] = None,
+                      count: Optional[int] = 50,
+                      offset: Optional[int] = 0,
                       token: Optional[str] = Depends(oauth2_scheme)):
     kwargs = {'name': name,
               'referenceunit': referenceunit}
     query = _get_authorized_query(origin, token)
-    return list(search_entities(query, 'quantities', **kwargs))
+    return list(search_entities(query, 'quantities', count=count, offset=offset, **kwargs))
 
 
 @app.get("/{origin}/lcia_methods", response_model=List[Entity])
@@ -423,6 +428,8 @@ def search_lcia_methods(origin: str,
                         method: Optional[str] = None,
                         category: Optional[str] = None,
                         indicator: Optional[str] = None,
+                        count: Optional[int] = 50,
+                        offset: Optional[int] = 0,
                         token: Optional[str] = Depends(oauth2_scheme)):
     kwargs = {'name': name,
               'referenceunit': referenceunit,
@@ -430,7 +437,7 @@ def search_lcia_methods(origin: str,
               'category': category,
               'indicator': indicator}
     query = _get_authorized_query(origin, token)
-    return list(search_entities(query, 'lcia_methods', **kwargs))
+    return list(search_entities(query, 'lcia_methods', count=count, offset=offset, **kwargs))
 
 
 @app.get("/{origin}/lcia", response_model=List[Entity])
@@ -486,6 +493,7 @@ def get_context(origin: str, context: str,
 
 
 @app.get("/{origin}/{flow}/targets", response_model=List[Entity])
+@app.get("/{origin}/flows/{flow}/targets", response_model=List[Entity])
 def get_targets(origin, flow, direction: str = None,
                 token: Optional[str] = Depends(oauth2_scheme)):
     """
@@ -737,6 +745,31 @@ def _run_process_lcia(qty_org, quantity, token, lci):
         qq = query.get_canonical(quantity)
 
     return do_lcia(query, qq, lci)
+
+
+@app.get("/{origin}/{process}/lcia/{quantity}/total", response_model=List[float])  # SHOOP
+@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}/total", response_model=List[float])
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}/total", response_model=List[float])
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}/total", response_model=List[float])
+def get_remote_lcia_total(origin: str, process: str, quantity: str, ref_flow: str = None, qty_org: str = None,
+                          token: Optional[str] = Depends(oauth2_scheme)):
+    """
+
+    :param origin:
+    :param process:
+    :param quantity:
+    :param ref_flow: [None] if process has multiple references, one must be specified
+    :param qty_org: [None] if
+    :param token:
+    :return:
+    """
+    pq = _get_authorized_query(origin, token)
+    p = pq.get(process)
+    rx = _get_rx_by_ref_flow(p, ref_flow)
+    lci = list(p.lci(rx))
+
+    ress = _run_process_lcia(qty_org, quantity, token, lci)
+    return [res.total() for res in ress]
 
 
 @app.post("/{origin}/{process}/lcia/{quantity}", response_model=List[LciaResult])  # SHOOP
