@@ -73,6 +73,7 @@ cors_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    allow_origin_regex="https://.*\.vault\.lc",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1054,7 +1055,7 @@ def get_quantity_norms(origin: str, quantity_id: str,
 @app.get('/{origin}/{quantity_id}/factors', response_model=List[Characterization])
 @app.get('/{origin}/{quantity_id}/factors/{flowable}', response_model=List[Characterization])
 def get_quantity_factors(origin: str, quantity_id: str, flowable: str = None,
-                       token: Optional[str] = Depends(oauth2_scheme)):
+                         token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     q = _get_typed_entity(query, quantity_id, 'quantity')
     enum = q.factors(flowable=flowable)
