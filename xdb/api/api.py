@@ -12,7 +12,7 @@ from .models.response import ServerMeta, PostTerm
 from .runtime import cat, search_entities, do_lcia, init_origin, MASTER_ISSUER, canonical_cf
 from .qdb import qdb_router
 
-from .libs.xdb_query import InterfaceNotAuthorized
+from .libs.xdb_query import InterfaceNotAuthorized, GuestTokenFailed
 
 from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired, UnknownOrigin
 from antelope.xdb_tokens import IssuerKey
@@ -85,6 +85,8 @@ async def catch_exceptions_middleware(request: Request, call_next):
         return await call_next(request)
     except InterfaceNotAuthorized as e:
         return JSONResponse(content="no grant found: origin: %s, iface: %s" % e.args, status_code=403)
+    except GuestTokenFailed as e:
+        return JSONResponse(content="guest token failed: iface: %s, attr: %s" % e.args, status_code=403)
 
 
 app.middleware('http')(catch_exceptions_middleware)
@@ -153,8 +155,13 @@ def _get_all_grants(user: str):
 
 
 def get_token_grants(token: Optional[str]):
+    """
+    Returns a 2-tuple: token ID, list of grants
+    :param token:
+    :return:
+    """
     if token is None:
-        return []
+        return '', []
     try:
         payload = jwt.decode(token, 'a fish', options={'verify_signature': False})
     except ExpiredSignatureError:
@@ -170,17 +177,18 @@ def get_token_grants(token: Optional[str]):
         valid_payload = jwt.decode(token, pub, algorithms=['RS256'])
     except JWTError:
         raise HTTPException(401, detail='Token failed verification')
+    tid = valid_payload.get('tid', '')
     # however, we also need to test whether the issuer is trusted with the requested origin(s). otherwise one
     # compromised key would allow a user to issue a token for any origin (TODO!)
     if payload['iss'] == MASTER_ISSUER:
-        return _get_all_grants(user=payload['sub'])
+        return tid, _get_all_grants(user=payload['sub'])
     jwt_grant = JwtGrant(**valid_payload)
-    return AuthorizationGrant.from_jwt(jwt_grant)
+    return tid, AuthorizationGrant.from_jwt(jwt_grant)
 
 
 @app.get("/", response_model=ServerMeta)
 def get_server_meta(token: Optional[str] = Depends(oauth2_scheme)):
-    grants = get_token_grants(token)
+    tid, grants = get_token_grants(token)
     sm = ServerMeta.from_app(app)
     # for org in PUBLIC_ORIGINS:
     #     sm.origins.append(org)
@@ -279,9 +287,10 @@ def _get_authorized_query(origin, token):
     :param origin:
     :return: a catalog query, with an authorized_interfaces attribute that returns: a set of authorizations. spec tbd.
     """
-    auth_grants = get_token_grants(token)
-    # grants = UNRESTRICTED_GRANTS + auth_grants
-    q = cat.query(origin, grants=auth_grants, cache=False)  # XdbCatalog will return an XdbQuery which auto-enforces grants !!
+    tid, auth_grants = get_token_grants(token)
+
+    # XdbCatalog will return an XdbQuery which auto-enforces grants !!
+    q = cat.query(origin, grants=auth_grants, token=token, tid=tid, cache=False)
     # q.authorized_interfaces = set([k.split(':')[1] for k in cat.interfaces if k.startswith(origin)])
     return q
 
@@ -294,7 +303,7 @@ def get_origins(token: Optional[str] = Depends(oauth2_scheme)):
     :param token:
     :return:
     """
-    auth_grants = get_token_grants(token)
+    tid, auth_grants = get_token_grants(token)
 
     return [cat.query(org, grants=auth_grants, cache=False).origin_meta(org) for org in
             sorted(set(k.origin for k in auth_grants))]
@@ -310,7 +319,7 @@ def get_origin(origin: str, token: Optional[str] = Depends(oauth2_scheme)):
     try:
         q = _get_authorized_query(origin, token)
     except UnknownOrigin:
-        g = get_token_grants(token)
+        tid, g = get_token_grants(token)
         if len(g) == 0:
             raise HTTPException(status_code=400, detail="Bad Scammer")
         else:
@@ -705,10 +714,33 @@ def get_lci(origin: str, process: str, quantity: str, ref_flow: str = None, quel
 """
 
 
-@app.get("/{origin}/{process}/lcia/{quantity}/total", response_model=List[float])  # SHOOP
-@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}/total", response_model=List[float])
-@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}/total", response_model=List[float])
-@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}/total", response_model=List[float])
+@app.get("/{origin}/{process}/lcia", response_model=List[LciaResult])
+@app.get("/{origin}/{process}/{ref_flow}/lcia", response_model=List[LciaResult])
+def get_remote_lcia_generic(origin: str, process: str, ref_flow: Optional[str] = None,
+                            token: Optional[str] = Depends(oauth2_scheme)):
+    """
+    A generic LCIA method that returns results for all "open" LCIA methods that are pre-loaded during
+    catalog initialization.
+    :param origin:
+    :param process:
+    :param ref_flow:
+    :param token:
+    :return:
+    """
+    pq = _get_authorized_query(origin, token)
+    p = pq.get(process)
+    rx = _get_rx_by_ref_flow(p, ref_flow)
+    lci = list(p.lci(rx))
+
+    qs = [q for origin in cat.pre_load for q in cat.query(origin).lcia_methods()]
+    ress = [q.do_lcia(lci) for q in qs]
+    return [LciaResult.from_lcia_result(p, res) for res in ress]
+
+
+@app.get("/{origin}/{process}/lcia/{quantity}/total", response_model=List[LciaResult])  # SHOOP
+@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}/total", response_model=List[LciaResult])
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}/total", response_model=List[LciaResult])
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}/total", response_model=List[LciaResult])
 def get_remote_lcia_total(origin: str, process: str, quantity: str, ref_flow: str = None, qty_org: str = None,
                           token: Optional[str] = Depends(oauth2_scheme)):
     """
@@ -727,7 +759,7 @@ def get_remote_lcia_total(origin: str, process: str, quantity: str, ref_flow: st
     lci = list(p.lci(rx))
 
     ress = _run_process_lcia(qty_org, quantity, token, lci)
-    return [res.total() for res in ress]
+    return [LciaResult.from_lcia_result(p, res) for res in ress]
 
 
 @app.get("/{origin}/{process}/lcia/{quantity}", response_model=List[LciaResult])  # SHOOP

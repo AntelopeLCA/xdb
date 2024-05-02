@@ -7,6 +7,15 @@ from antelope.interfaces.iexchange import EXCHANGE_VALUES_REQUIRED
 from antelope.interfaces.ibackground import BACKGROUND_VALUES_REQUIRED
 from antelope.models import OriginMeta
 
+from requests import session, HTTPError
+import json
+import os
+import logging
+
+
+bbhost = os.environ.get('BLACKBOOK_HOST', None)
+protocol = os.environ.get('BLACKBOOK_PROTOCOL', 'http')
+
 
 _VALUES_REQUIRED = EXCHANGE_VALUES_REQUIRED.union(BACKGROUND_VALUES_REQUIRED)
 _NOAUTH_IFACES = ('basic', 'index')
@@ -18,8 +27,12 @@ class InterfaceNotAuthorized(Exception):
     pass
 
 
+class GuestTokenFailed(Exception):
+    pass
+
+
 class XdbQuery(CatalogQuery):
-    def __init__(self, origin, catalog=None, grants=(), **kwargs):
+    def __init__(self, origin, catalog=None, grants=(), token=None, tid='', **kwargs):
         super(XdbQuery, self).__init__(origin, catalog=catalog, **kwargs)
         # we have two different grants listings-- one, the grants for *this* origin
         # (note that a grant authorizes more-specific, but not less-specific, origins)
@@ -27,9 +40,23 @@ class XdbQuery(CatalogQuery):
         self._grants = {g.access: g for g in grants if origin.startswith(g.origin)}  # we only store one grant per iface. so don't give us more.
         # two, we have all the grants
         self._all_grants = tuple(grants)
+        self._token = token
+        self._tid = str(tid)
 
     def authorized_interfaces(self):
         return set(self._grants.keys())
+
+    @property
+    def user(self):
+        if len(self._all_grants) > 0:
+            return self._all_grants[0].user
+        return None
+
+    @property
+    def guest(self):
+        if self._tid.find('guest') >= 0:
+            return True
+        return False
 
     def origin_meta(self, origin):
         gs = [g for g in self._all_grants if g.origin == origin]
@@ -54,8 +81,25 @@ class XdbQuery(CatalogQuery):
         except AttributeError:
             raise BackgroundSetup('Failed to configure background')
 
+    def check_guest_token(self, iface, route):
+        if iface in _NOAUTH_IFACES:
+            return True
+        with session() as s:
+            s.headers['Authorization'] = 'bearer %s' % self._token
+            logging.info('Testing guest token against %s' % bbhost)
+            try:
+                resp = s.get('%s://%s/check_guest/%s/%s' % (protocol, bbhost, iface, route))
+            except HTTPError as e:
+                raise GuestTokenFailed(*e.args)
+            j = json.loads(resp.content)
+            return bool(j)
+
     def _perform_query(self, itype, attrname, exc, *args, **kwargs):
         if attrname not in _AUTH_NOT_REQUIRED:
+            if self.guest:
+                if not self.check_guest_token(itype, attrname):
+                    raise GuestTokenFailed(itype, attrname)
+
             if itype in self._grants:
                 grant = self._grants[itype]
                 if attrname in _VALUES_REQUIRED:

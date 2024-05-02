@@ -77,6 +77,7 @@ class XdbCatalog(LcCatalog):
         self.load_pubkeys()
 
     _query_type = XdbQuery
+    pre_load = []
 
     def pre_load_query(self, origin, **kwargs):
         """
@@ -93,3 +94,4 @@ class XdbCatalog(LcCatalog):
                 except UnknownOrigin:
                     return
                 self._queries[origin] = CatalogQuery(origin, catalog=self, **kwargs)
+                self.pre_load.append(origin)
