@@ -12,7 +12,7 @@ from .models.response import ServerMeta, PostTerm
 from .runtime import cat, search_entities, do_lcia, init_origin, MASTER_ISSUER, canonical_cf
 from .qdb import qdb_router
 
-from .libs.xdb_query import InterfaceNotAuthorized, GuestTokenFailed
+from .libs.xdb_query import InterfaceNotAuthorized, GuestTokenFailed, GuestTokenRejected
 
 from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired, UnknownOrigin
 from antelope.xdb_tokens import IssuerKey
@@ -85,8 +85,10 @@ async def catch_exceptions_middleware(request: Request, call_next):
         return await call_next(request)
     except InterfaceNotAuthorized as e:
         return JSONResponse(content="no grant found: origin: %s, iface: %s" % e.args, status_code=403)
+    except GuestTokenRejected as e:
+        return JSONResponse(content="Quota Exceeded: iface: %s, attr: %s" % e.args, status_code=403)
     except GuestTokenFailed as e:
-        return JSONResponse(content="guest token failed: iface: %s, attr: %s" % e.args, status_code=403)
+        return JSONResponse(content="guest token failed: iface: %s, attr: %s" % e.args, status_code=401)
 
 
 app.middleware('http')(catch_exceptions_middleware)

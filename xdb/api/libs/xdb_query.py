@@ -17,7 +17,7 @@ bbhost = os.environ.get('BLACKBOOK_HOST', None)
 protocol = os.environ.get('BLACKBOOK_PROTOCOL', 'http')
 
 
-_VALUES_REQUIRED = EXCHANGE_VALUES_REQUIRED.union(BACKGROUND_VALUES_REQUIRED)
+_VALUES_REQUIRED = EXCHANGE_VALUES_REQUIRED | BACKGROUND_VALUES_REQUIRED
 _NOAUTH_IFACES = ('basic', 'index')
 
 _AUTH_NOT_REQUIRED = {'is_lcia_engine', 'check_bg'}
@@ -28,6 +28,16 @@ class InterfaceNotAuthorized(Exception):
 
 
 class GuestTokenFailed(Exception):
+    """
+    some server-side failure
+    """
+    pass
+
+
+class GuestTokenRejected(Exception):
+    """
+    quota exceeded
+    """
     pass
 
 
@@ -90,7 +100,7 @@ class XdbQuery(CatalogQuery):
             try:
                 resp = s.get('%s://%s/check_guest/%s/%s' % (protocol, bbhost, iface, route))
             except HTTPError as e:
-                raise GuestTokenFailed(*e.args)
+                raise GuestTokenRejected(*e.args)
             j = json.loads(resp.content)
             return bool(j)
 
