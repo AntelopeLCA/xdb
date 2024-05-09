@@ -100,7 +100,7 @@ class XdbQuery(CatalogQuery):
             try:
                 resp = s.get('%s://%s/check_guest/%s/%s' % (protocol, bbhost, iface, route))
             except HTTPError as e:
-                raise GuestTokenRejected(*e.args)
+                raise GuestTokenFailed(*e.args)
             j = json.loads(resp.content)
             return bool(j)
 
@@ -108,7 +108,7 @@ class XdbQuery(CatalogQuery):
         if attrname not in _AUTH_NOT_REQUIRED:
             if self.guest:
                 if not self.check_guest_token(itype, attrname):
-                    raise GuestTokenFailed(itype, attrname)
+                    raise GuestTokenRejected(itype, attrname)
 
             if itype in self._grants:
                 grant = self._grants[itype]
