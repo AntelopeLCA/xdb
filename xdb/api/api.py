@@ -84,7 +84,7 @@ async def catch_exceptions_middleware(request: Request, call_next):
     try:
         return await call_next(request)
     except InterfaceNotAuthorized as e:
-        return JSONResponse(content="no grant found: origin: %s, iface: %s" % e.args, status_code=403)
+        return JSONResponse(content="no grant found: origin: %s, iface: %s, query: %s" % e.args, status_code=403)
     except GuestTokenRejected as e:
         return JSONResponse(content="Quota Exceeded: iface: %s, attr: %s" % e.args, status_code=403)
     except GuestTokenFailed as e:

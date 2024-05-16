@@ -119,7 +119,7 @@ class XdbQuery(CatalogQuery):
 
             else:
                 if itype not in _NOAUTH_IFACES:
-                    raise InterfaceNotAuthorized(self.origin, itype)
+                    raise InterfaceNotAuthorized(self.origin, itype, attrname)
                 # otherwise pass
 
         return super(XdbQuery, self)._perform_query(itype, attrname, exc, *args, **kwargs)
