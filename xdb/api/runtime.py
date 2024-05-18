@@ -83,6 +83,7 @@ def init_origin(origin, reset=False):
     :param reset: [False] if true, delete the resources and start over
     :return:
     """
+    logging.warning('init origin %s reset %s' % (origin, reset))
     if reset:
         cat.reset_origin(origin)
         _aws_sync_origin(origin)

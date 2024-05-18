@@ -228,7 +228,7 @@ def update_origin(origin: str, interface: Optional[str] = None, token: Optional[
     if command != 'update_origin' or arg != origin:
         raise HTTPException(400, detail="command token is incorrect")
 
-    if iface in cat.interfaces:
+    if iface in cat.interfaces and not reset:
         return True
 
     try:
