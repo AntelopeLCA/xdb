@@ -14,6 +14,8 @@ from .qdb import qdb_router
 
 from .libs.xdb_query import InterfaceNotAuthorized, GuestTokenFailed, GuestTokenRejected
 
+from .version import XDB_VERSION
+
 from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired, UnknownOrigin
 from antelope.xdb_tokens import IssuerKey
 
@@ -39,16 +41,6 @@ bbhost = os.environ.get('BLACKBOOK_HOST', None)
 if bbhost:
     protocol = os.environ.get('BLACKBOOK_PROTOCOL', 'http')
     cat.retrieve_trusted_issuer_key(host=bbhost, protocol=protocol)
-
-
-XDB_VERSION = "0.1.3"
-'''
-Version History
-0.1.3 - 2024-03-21 - test live USLCI with local + remote LCIA
-
-0.1.2 - urrrrr...
-
-'''
 
 
 app = FastAPI(
@@ -722,7 +714,7 @@ def get_remote_lcia_generic(origin: str, process: str, ref_flow: Optional[str] =
                             token: Optional[str] = Depends(oauth2_scheme)):
     """
     A generic LCIA method that returns results for all "open" LCIA methods that are pre-loaded during
-    catalog initialization.
+    catalog initialization; totals-only
     :param origin:
     :param process:
     :param ref_flow:
