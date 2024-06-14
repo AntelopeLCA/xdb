@@ -4,6 +4,7 @@ from antelope.models import (OriginMeta, OriginCount, Entity, FlowEntity, Contex
                              generate_pydantic_exchanges)
 
 from antelope_core.entities import MetaQuantityUnit
+from antelope_core.implementations.exchange import MixedDirections
 from antelope.models.auth import AuthorizationGrant, JwtGrant
 from antelope_core.contexts import NullContext
 
@@ -17,6 +18,7 @@ from .libs.xdb_query import InterfaceNotAuthorized, GuestTokenFailed, GuestToken
 from .version import XDB_VERSION
 
 from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired, UnknownOrigin
+from antelope.interfaces import InvalidDirection
 from antelope.xdb_tokens import IssuerKey
 
 from fastapi import FastAPI, HTTPException, Depends
@@ -880,6 +882,29 @@ def get_inventory(origin, process, ref_flow: str,
 
     inv = p.inventory(rx)
     return list(AllocatedExchange.from_inv(x, rx.flow.external_ref) for x in inv)
+
+
+@app.get("/{origin}/exchange_relation/{process}/{exch_flow}", response_model=float)
+@app.get("/{origin}/exchange_relation/{process}/{ref_flow}/{exch_flow}", response_model=float)
+@app.get("/{origin}/exchange_relation/{process}/{ref_flow}/{exch_flow}/{direction}", response_model=float)
+def get_exchange_relation(origin: str, process: str, exch_flow: str,
+                          ref_flow: Optional[str] = None, direction: Optional[str] = None,
+                          token: Optional[str] = Depends(oauth2_scheme)):
+    query = _get_authorized_query(origin, token)
+    p = _get_typed_entity(query, process, 'process')
+    try:
+        # could be {process}/{exch_flow}/{direction}
+        direction = check_direction(exch_flow)
+        exch_flow = ref_flow
+        ref_flow = None
+    except InvalidDirection:
+        pass
+    rx = _get_rx_by_ref_flow(p, ref_flow)
+    try:
+        val = p.exchange_relation(rx.flow, exch_flow, direction)
+    except MixedDirections:
+        raise HTTPException(400, detail=f"Process {process} has mixed directions for flow {exch_flow}")
+    return val
 
 
 '''
