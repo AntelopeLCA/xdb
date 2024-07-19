@@ -128,7 +128,11 @@ def search_entities(query, etype, count=50, offset=0, context=None, **kwargs):
             break
 
 
-def do_lcia(query, qq, lci, **kwargs):
+def do_lcia(qq, lci, **kwargs):
+    return qq.do_lcia(lci, **kwargs)
+
+
+def do_multi_lcia(query, qq, lci, **kwargs):
     if qq.unit == MetaQuantityUnit.unitstring and qq.has_property('impactCategories'):
         qs = [query.get_canonical(k) for k in qq['impactCategories']]
     else:

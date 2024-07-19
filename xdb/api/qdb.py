@@ -224,7 +224,7 @@ def _lcia_exch_ref(p, x):
     return ExchangeRef(p, flow, x.direction, value=x.value, termination=term)
 
 
-@qdb_router.post('/{quantity_id}/do_lcia', response_model=List[LciaResult])
+@qdb_router.post('/{quantity_id}/do_lcia', response_model=LciaResult)
 def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], locale: str = None,
                         quell_biogenic_co2: bool = False):
     """
@@ -239,8 +239,8 @@ def post_lcia_exchanges(quantity_id: str, exchanges: List[UnallocatedExchange], 
     q = _get_canonical(None, quantity_id)
     p = LcProcess.new('LCIA POST')
     inv = list(filter(None, (_lcia_exch_ref(p, x) for x in exchanges)))
-    ress = do_lcia(lcia, q, inv, locale=locale, quell_biogenic_co2=quell_biogenic_co2)
-    return [LciaResult.detailed(p, res) for res in ress]
+    res = do_lcia(q, inv, locale=locale, quell_biogenic_co2=quell_biogenic_co2)
+    return LciaResult.detailed(p, res)
 
 
 @qdb_router.post('/{quantity_id}/flow_specs', response_model=List[FlowFactors])

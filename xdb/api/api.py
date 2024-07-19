@@ -733,10 +733,10 @@ def get_remote_lcia_generic(origin: str, process: str, ref_flow: Optional[str] =
     return [LciaResult.from_lcia_result(p, res) for res in ress]
 
 
-@app.get("/{origin}/{process}/lcia/{quantity}/total", response_model=List[LciaResult])  # SHOOP
-@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}/total", response_model=List[LciaResult])
-@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}/total", response_model=List[LciaResult])
-@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}/total", response_model=List[LciaResult])
+@app.get("/{origin}/{process}/lcia/{quantity}/total", response_model=LciaResult)  # SHOOP
+@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}/total", response_model=LciaResult)
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}/total", response_model=LciaResult)
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}/total", response_model=LciaResult)
 def get_remote_lcia_total(origin: str, process: str, quantity: str, ref_flow: str = None, qty_org: str = None,
                           token: Optional[str] = Depends(oauth2_scheme)):
     """
@@ -754,14 +754,14 @@ def get_remote_lcia_total(origin: str, process: str, quantity: str, ref_flow: st
     rx = _get_rx_by_ref_flow(p, ref_flow)
     lci = list(p.lci(rx))
 
-    ress = _run_process_lcia(qty_org, quantity, token, lci)
-    return [LciaResult.from_lcia_result(p, res) for res in ress]
+    res = _run_process_lcia(qty_org, quantity, token, lci)
+    return LciaResult.from_lcia_result(p, res)
 
 
-@app.get("/{origin}/{process}/lcia/{quantity}", response_model=List[LciaResult])  # SHOOP
-@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=List[LciaResult])
-@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=List[LciaResult])
-@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=List[LciaResult])
+@app.get("/{origin}/{process}/lcia/{quantity}", response_model=LciaResult)  # SHOOP
+@app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=LciaResult)
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=LciaResult)
+@app.get("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=LciaResult)
 def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str = None, qty_org: str = None,
                     token: Optional[str] = Depends(oauth2_scheme)):
     """
@@ -779,12 +779,12 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str = No
     rx = _get_rx_by_ref_flow(p, ref_flow)
     lci = list(p.lci(rx))
 
-    ress = _run_process_lcia(qty_org, quantity, token, lci)
+    res = _run_process_lcia(qty_org, quantity, token, lci)
 
     if 'exchange' in pq.authorized_interfaces():
-        return [LciaResult.detailed(p, res) for res in ress]
+        return LciaResult.detailed(p, res)
     else:
-        return [LciaResult.summary(p, res) for res in ress]
+        return LciaResult.summary(p, res)
 
 
 def _run_process_lcia(qty_org, quantity, token, lci):
@@ -793,18 +793,17 @@ def _run_process_lcia(qty_org, quantity, token, lci):
             qq = cat.lcia_engine.get_canonical(quantity)
         except EntityNotFound:
             raise HTTPException(404, detail=f"Quantity {quantity} not found")
-        query = _get_authorized_query(qq.origin, token)
     else:
         query = _get_authorized_query(qty_org, token)
         qq = query.get(quantity)
 
-    return do_lcia(query, qq, lci)
+    return do_lcia(qq, lci)
 
 
-@app.post("/{origin}/{process}/lcia/{quantity}", response_model=List[LciaResult])  # SHOOP
-@app.post("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=List[LciaResult])
-@app.post("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=List[LciaResult])
-@app.post("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=List[LciaResult])
+@app.post("/{origin}/{process}/lcia/{quantity}", response_model=LciaResult)  # SHOOP
+@app.post("/{origin}/{process}/lcia/{qty_org}/{quantity}", response_model=LciaResult)
+@app.post("/{origin}/{process}/{ref_flow}/lcia/{quantity}", response_model=LciaResult)
+@app.post("/{origin}/{process}/{ref_flow}/lcia/{qty_org}/{quantity}", response_model=LciaResult)
 def post_observed_remote_lcia(origin: str, process: str, quantity: str, observed: List[DirectedFlow],
                               ref_flow: str = None, qty_org: str = None,
                               token: Optional[str] = Depends(oauth2_scheme)):
@@ -824,12 +823,12 @@ def post_observed_remote_lcia(origin: str, process: str, quantity: str, observed
     rx = _get_rx_by_ref_flow(p, ref_flow)
     lci = list(p.unobserved_lci(observed, ref_flow=rx))
 
-    ress = _run_process_lcia(qty_org, quantity, token, lci)
+    res = _run_process_lcia(qty_org, quantity, token, lci)
 
     if 'exchange' in pq.authorized_interfaces():
-        return [LciaResult.detailed(p, res) for res in ress]
+        return LciaResult.detailed(p, res)
     else:
-        return [LciaResult.summary(p, res) for res in ress]
+        return LciaResult.summary(p, res)
 
 
 """TO WRITE:
