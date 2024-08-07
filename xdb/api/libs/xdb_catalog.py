@@ -4,6 +4,7 @@ An LcCatalog subclass that yields XdbQueries
 
 from antelope.xdb_tokens import IssuerKey
 from antelope_core import LcCatalog
+from antelope_core.lcia_engine import DEFAULT_CONTEXTS, DEFAULT_FLOWABLES, REF_QTYS
 from antelope import UnknownOrigin
 from .xdb_query import XdbQuery, CatalogQuery
 from .meter_reader import MeterReader
@@ -12,6 +13,7 @@ import os
 import json
 import requests
 import datetime
+import logging
 
 
 PUBKEYS_FILENAME = 'PUBKEYS.json'
@@ -24,6 +26,26 @@ class XdbCatalog(LcCatalog):
     @property
     def pubkeys_file(self):
         return os.path.join(self._rootdir, PUBKEYS_FILENAME)
+
+    @property
+    def _flowables(self):
+        return DEFAULT_FLOWABLES
+
+    @property
+    def _contexts(self):
+        return DEFAULT_CONTEXTS
+
+    @property
+    def _reference_qtys(self):
+        return REF_QTYS
+
+    def _make_rootdir(self):
+        for x in self._dirs:
+            os.makedirs(x, exist_ok=True)
+
+    def save_local_changes(self):
+        logging.info('Cannot save local changes on xdb')
+        return
 
     def load_pubkeys(self):
 
