@@ -733,6 +733,19 @@ def get_remote_lcia_generic(origin: str, process: str, ref_flow: Optional[str] =
     return [LciaResult.from_lcia_result(p, res) for res in ress]
 
 
+def _get_lcia_quantity(qty_org, quantity, token):
+    if qty_org is None:
+        try:
+            qq = cat.lcia_engine.get_canonical(quantity)
+        except EntityNotFound:
+            raise HTTPException(404, detail=f"Quantity {quantity} not found")
+    else:
+        query = _get_authorized_query(qty_org, token)
+        qq = query.get(quantity)
+
+    return qq
+
+
 @app.get("/{origin}/{process}/lcia/{quantity}/total", response_model=LciaResult)  # SHOOP
 @app.get("/{origin}/{process}/lcia/{qty_org}/{quantity}/total", response_model=LciaResult)
 @app.get("/{origin}/{process}/{ref_flow}/lcia/{quantity}/total", response_model=LciaResult)
@@ -750,11 +763,12 @@ def get_remote_lcia_total(origin: str, process: str, quantity: str, ref_flow: st
     :return:
     """
     pq = _get_authorized_query(origin, token)
+    qq = _get_lcia_quantity(qty_org, quantity, token)
     p = pq.get(process)
     rx = _get_rx_by_ref_flow(p, ref_flow)
     lci = list(p.lci(rx))
 
-    res = _run_process_lcia(qty_org, quantity, token, lci)
+    res = do_lcia(qq, lci)
     return LciaResult.from_lcia_result(p, res)
 
 
@@ -775,29 +789,17 @@ def get_remote_lcia(origin: str, process: str, quantity: str, ref_flow: str = No
     :return:
     """
     pq = _get_authorized_query(origin, token)
+    qq = _get_lcia_quantity(qty_org, quantity, token)
     p = pq.get(process)
     rx = _get_rx_by_ref_flow(p, ref_flow)
     lci = list(p.lci(rx))
 
-    res = _run_process_lcia(qty_org, quantity, token, lci)
+    res = do_lcia(qq, lci)
 
     if 'exchange' in pq.authorized_interfaces():
         return LciaResult.detailed(p, res)
     else:
         return LciaResult.summary(p, res)
-
-
-def _run_process_lcia(qty_org, quantity, token, lci):
-    if qty_org is None:
-        try:
-            qq = cat.lcia_engine.get_canonical(quantity)
-        except EntityNotFound:
-            raise HTTPException(404, detail=f"Quantity {quantity} not found")
-    else:
-        query = _get_authorized_query(qty_org, token)
-        qq = query.get(quantity)
-
-    return do_lcia(qq, lci)
 
 
 @app.post("/{origin}/{process}/lcia/{quantity}", response_model=LciaResult)  # SHOOP
@@ -819,11 +821,12 @@ def post_observed_remote_lcia(origin: str, process: str, quantity: str, observed
     :return:
     """
     pq = _get_authorized_query(origin, token)
+    qq = _get_lcia_quantity(qty_org, quantity, token)
     p = pq.get(process)
     rx = _get_rx_by_ref_flow(p, ref_flow)
     lci = list(p.unobserved_lci(observed, ref_flow=rx))
 
-    res = _run_process_lcia(qty_org, quantity, token, lci)
+    res = do_lcia(qq, lci)
 
     if 'exchange' in pq.authorized_interfaces():
         return LciaResult.detailed(p, res)
