@@ -856,13 +856,24 @@ def get_exchanges(origin, process, type: str = None, flow: str = None,
     return list(generate_pydantic_exchanges(exch, type=type))
 
 
-@app.get("/{origin}/{process}/exchanges/{flow}", response_model=List[ExchangeValues])  # SHOOP
+@app.get("/{origin}/{process}/exchanges/{flow}", response_model=List)  # SHOOP
 def get_exchange_values(origin, process, flow: str,
                         token: Optional[str] = Depends(oauth2_scheme)):
+    """
+    Returns either ExchangeValues or Exchanges depending on whether the user's grant is values-authorized
+    :param origin:
+    :param process:
+    :param flow:
+    :param token:
+    :return:
+    """
     query = _get_authorized_query(origin, token)
     p = _get_typed_entity(query, process, 'process')
     exch = p.exchange_values(flow=flow)
-    return list(ExchangeValues.from_ev(x) for x in exch)
+    if query.check_values('exchange'):
+        return list(ExchangeValues.from_ev(x) for x in exch)
+    else:
+        return list(generate_pydantic_exchanges(exch))
 
 
 @app.get("/{origin}/{process}/inventory", response_model=List[UnallocatedExchange])

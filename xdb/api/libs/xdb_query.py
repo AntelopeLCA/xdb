@@ -104,6 +104,11 @@ class XdbQuery(CatalogQuery):
             j = json.loads(resp.content)
             return bool(j)
 
+    def check_values(self, itype):
+        if itype in self._grants:
+            return self._grants[itype].values
+        return False
+
     def _perform_query(self, itype, attrname, exc, *args, **kwargs):
         if attrname not in _AUTH_NOT_REQUIRED:
             if self.guest:
