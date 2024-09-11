@@ -1028,8 +1028,8 @@ def sys_lci(origin: str, demand: List[UnallocatedExchange], token: Optional[str]
     return list(UnallocatedExchange.from_inv(x) for x in query.sys_lci(demand=demand))
 
 
-@app.get('/{origin}/{process}/{ref_flow}/consumers', response_model=List[AllocatedExchange])
-@app.get('/{origin}/{process}/consumers', response_model=List[AllocatedExchange])
+@app.get('/{origin}/{process}/{ref_flow}/consumers', response_model=List[ReferenceExchange])
+@app.get('/{origin}/{process}/consumers', response_model=List[ReferenceExchange])
 def get_consumers(origin: str, process: str, ref_flow: str = None,
                   token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
