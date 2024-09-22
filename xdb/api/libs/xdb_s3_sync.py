@@ -4,6 +4,7 @@ This file does what boto3 doesn't do: provides the mechanisms to sync a director
 The get_path method should require only ListObjects and GetObject
 """
 import os
+import logging
 import boto3
 
 from pathlib import Path
@@ -29,6 +30,8 @@ class XdbS3Sync(object):
             "Prefix": prefix
         }
         next_token = ""
+
+        logging.warning('bucket %s prefix %s' % (default_kwargs['Bucket'], default_kwargs['Prefix']))
 
         while next_token is not None:
             updated_kwargs = default_kwargs.copy()
@@ -59,6 +62,7 @@ class XdbS3Sync(object):
 
         for file_name in file_names:
             file_path = Path.joinpath(local_path, file_name)
+            logging.warning('fetching %s' % file_path)
 
             # Create folder for parent directory
             file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -83,4 +87,5 @@ class XdbS3Sync(object):
             raise FileNotFoundError(local_path)
 
         files, folders = self._get_files_folders(s3_path)
+        logging.warning('Found %d files and %d folders' % (len(files), len(folders)))
         self._download_files(local_path, files, folders)
