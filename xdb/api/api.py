@@ -167,7 +167,7 @@ def get_token_grants(token: Optional[str]):
     except KeyError:
         raise HTTPException(401, detail='Issuer %s unknown' % payload['iss'])
     if iss.expiry < datetime.now().timestamp():
-        raise HTTPException(401, detail='Issuer %s certificate is expired. blackbook server must refresh')
+        raise HTTPException(401, detail='Issuer %s certificate is expired. blackbook server must refresh' % payload['iss'])
     pub = iss.public_key  # this tells us the issuer that signed this token
     try:
         valid_payload = jwt.decode(token, pub, algorithms=['RS256'])
@@ -305,6 +305,12 @@ def get_origins(token: Optional[str] = Depends(oauth2_scheme)):
             sorted(set(k.origin for k in auth_grants))]
 
 
+@app.get("/debug/grants", response_model=List[AuthorizationGrant])
+def get_grants_for_debugging(token: Optional[str] = Depends(oauth2_scheme)):
+    tid, grants = get_token_grants(token)
+    return grants
+
+
 @app.get("/{origin}", response_model=OriginMeta)
 def get_origin(origin: str, token: Optional[str] = Depends(oauth2_scheme)):
     """
@@ -385,7 +391,7 @@ def search_processes(origin: str,
                      classifications: Optional[str] = None,
                      spatialscope: Optional[str] = None,
                      comment: Optional[str] = None,
-                     count: Optional[int] = 50,
+                     limit: Optional[int] = 50,
                      offset: Optional[int] = 0,
                      token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
@@ -393,7 +399,7 @@ def search_processes(origin: str,
               'classifications': classifications,
               'spatialscope': spatialscope,
               'comment': comment}
-    return list(search_entities(query, 'processes', count=count, offset=offset, **kwargs))
+    return list(search_entities(query, 'processes', count=limit, offset=offset, **kwargs))
 
 
 @app.get("/{origin}/flows", response_model=List[FlowEntity])
@@ -401,7 +407,7 @@ def search_flows(origin: str,
                  name: Optional[str] = None,
                  casnumber: Optional[str] = None,
                  token: Optional[str] = Depends(oauth2_scheme),
-                 count: Optional[int] = 50,
+                 limit: Optional[int] = 50,
                  offset: Optional[int] = 0,
                  context: Optional[str] = None):
     kwargs = {'name': name,
@@ -409,7 +415,7 @@ def search_flows(origin: str,
     query = _get_authorized_query(origin, token)
     if context is not None:
         context = query.get_context(context)
-    fs = list(search_entities(query, 'flows', count=count, offset=offset, context=context, **kwargs))
+    fs = list(search_entities(query, 'flows', count=limit, offset=offset, context=context, **kwargs))
     return fs
 
 
@@ -417,13 +423,13 @@ def search_flows(origin: str,
 def search_quantities(origin: str,
                       name: Optional[str] = None,
                       referenceunit: Optional[str] = None,
-                      count: Optional[int] = 50,
+                      limit: Optional[int] = 50,
                       offset: Optional[int] = 0,
                       token: Optional[str] = Depends(oauth2_scheme)):
     kwargs = {'name': name,
               'referenceunit': referenceunit}
     query = _get_authorized_query(origin, token)
-    return list(search_entities(query, 'quantities', count=count, offset=offset, **kwargs))
+    return list(search_entities(query, 'quantities', count=limit, offset=offset, **kwargs))
 
 
 @app.get("/{origin}/lcia_methods", response_model=List[Entity])
@@ -434,7 +440,7 @@ def search_lcia_methods(origin: str,
                         method: Optional[str] = None,
                         category: Optional[str] = None,
                         indicator: Optional[str] = None,
-                        count: Optional[int] = 50,
+                        limit: Optional[int] = 50,
                         offset: Optional[int] = 0,
                         token: Optional[str] = Depends(oauth2_scheme)):
     kwargs = {'name': name,
@@ -443,7 +449,7 @@ def search_lcia_methods(origin: str,
               'category': category,
               'indicator': indicator}
     query = _get_authorized_query(origin, token)
-    return list(search_entities(query, 'lcia_methods', count=count, offset=offset, **kwargs))
+    return list(search_entities(query, 'lcia_methods', count=limit, offset=offset, **kwargs))
 
 
 @app.get("/{origin}/lcia", response_model=List[Entity])
@@ -1097,15 +1103,15 @@ def get_cf(origin: str, flow_id: str, quantity_id: str, context: str = None, loc
 
 
 @app.get('/{origin}/{flow_id}/profile', response_model=List[Characterization])
-def get_flow_profile(origin: str, flow_id: str, quantity: str = None, context: str = None,
+def get_flow_profile(origin: str, flow_id: str, ref_quantity: str = None, context: str = None,
                      token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     f = _get_typed_entity(query, flow_id, 'flow')
-    if quantity is not None:
-        quantity = _get_typed_entity(query, quantity, 'quantity')
+    if ref_quantity is not None:
+        ref_quantity = _get_typed_entity(query, ref_quantity, 'quantity')
     if context is not None:
         context = query.get_context(context)
-    return [canonical_cf(cf) for cf in f.profile(quantity=quantity, context=context)]
+    return [canonical_cf(cf) for cf in f.profile(ref_quantity=ref_quantity, context=context)]
 
 
 @app.get('/{origin}/{quantity_id}/norm', response_model=Normalizations)

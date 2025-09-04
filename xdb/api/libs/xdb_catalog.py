@@ -89,7 +89,8 @@ class XdbCatalog(LcCatalog):
         self.save_pubkeys()
 
     def reset_origin(self, origin):
-        for res in self.resources(origin):
+        # does this delete the resource?
+        for res in list(self.resources(origin)):
             self.delete_resource(res)
         self._queries.pop(origin, None)
 

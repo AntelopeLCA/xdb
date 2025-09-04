@@ -5,6 +5,7 @@ A CatalogQuery subclass that enforces access limitations
 from antelope_core.catalog_query import CatalogQuery, BackgroundSetup
 from antelope.interfaces.iexchange import EXCHANGE_VALUES_REQUIRED
 from antelope.interfaces.ibackground import BACKGROUND_VALUES_REQUIRED
+from antelope.interfaces.iquantity import QuantityRequired
 from antelope.models import OriginMeta
 
 from requests import session, HTTPError
@@ -128,3 +129,9 @@ class XdbQuery(CatalogQuery):
                 # otherwise pass
 
         return super(XdbQuery, self)._perform_query(itype, attrname, exc, *args, **kwargs)
+
+    def cf(self, *args, **kwargs):
+        try:
+            return super(XdbQuery, self).cf(*args, **kwargs)
+        except InterfaceNotAuthorized:
+            raise QuantityRequired('quantity interface not authorized')

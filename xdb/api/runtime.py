@@ -108,16 +108,19 @@ def search_entities(query, etype, count=50, offset=0, context=None, **kwargs):
     for e in it:
         if not e.origin.startswith(query.origin):  # return more-specific
             continue
+        if context and etype == 'flows':
+            # filter contexts before counting offset
+            if e.context:
+                if not e.context.is_subcompartment(context):
+                    continue
+            else:
+                continue
+
         if offset > 0:
             offset -= 1
             continue
+
         if etype == 'flows':
-            if context:
-                if e.context:
-                    if not e.context.is_subcompartment(context):
-                        continue
-                else:
-                    continue
             yield FlowEntity.from_flow(e, **sargs)
         elif etype == 'processes':
             yield Entity.from_search(e)
