@@ -7,6 +7,7 @@ from antelope.interfaces.iexchange import EXCHANGE_VALUES_REQUIRED
 from antelope.interfaces.ibackground import BACKGROUND_VALUES_REQUIRED
 from antelope.interfaces.iquantity import QuantityRequired
 from antelope.models import OriginMeta
+from antelope import EntityNotFound, IndexRequired
 
 from requests import session, HTTPError
 import json
@@ -109,6 +110,23 @@ class XdbQuery(CatalogQuery):
         if itype in self._grants:
             return self._grants[itype].values
         return False
+
+    # bypass make_ref for bulk queries
+    def processes(self, **kwargs):
+        for i in self._perform_query('index', 'processes', IndexRequired, **kwargs):
+            yield i
+
+    def flows(self, **kwargs):
+        for i in self._perform_query('index', 'flows', IndexRequired, **kwargs):
+            yield i
+
+    def quantities(self, **kwargs):
+        for i in self._perform_query('index', 'quantities', IndexRequired, **kwargs):
+            yield i
+
+    def lcia_methods(self, **kwargs):
+        for i in self._perform_query('index', 'lcia_methods', IndexRequired, **kwargs):
+            yield i
 
     def _perform_query(self, itype, attrname, exc, *args, **kwargs):
         if attrname not in _AUTH_NOT_REQUIRED:

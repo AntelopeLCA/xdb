@@ -17,7 +17,8 @@ from .libs.xdb_query import InterfaceNotAuthorized, GuestTokenFailed, GuestToken
 
 from .version import XDB_VERSION
 
-from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired, UnknownOrigin
+from antelope import EntityNotFound, MultipleReferences, NoReference, check_direction, EXCHANGE_TYPES, IndexRequired, \
+    UnknownOrigin, ValuesAccessRequired
 from antelope.interfaces import InvalidDirection
 from antelope.xdb_tokens import IssuerKey
 
@@ -630,7 +631,10 @@ def get_references(origin, entity, token: Optional[str] = Depends(oauth2_scheme)
     query = _get_authorized_query(origin, token)
     ent = _get_typed_entity(query, entity)
     if ent.entity_type == 'process':
-        return list(ReferenceValue.from_rx(rx) for rx in ent.references())
+        try:
+            return list(ReferenceValue.from_rx(rx) for rx in query.get_reference(entity))
+        except ValuesAccessRequired:
+            return list(ReferenceExchange.from_exchange(x) for x in ent.references())
     else:
         return [get_unitary_reference(origin, entity, token)]
 
@@ -639,6 +643,8 @@ def get_references(origin, entity, token: Optional[str] = Depends(oauth2_scheme)
 def get_uuid(origin, entity, token: Optional[str] = Depends(oauth2_scheme)):
     query = _get_authorized_query(origin, token)
     ent = _get_typed_entity(query, entity)
+    if ent.uuid is None:
+        return False
     return ent.uuid
 
 

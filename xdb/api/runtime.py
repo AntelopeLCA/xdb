@@ -111,7 +111,7 @@ def search_entities(query, etype, count=50, offset=0, context=None, **kwargs):
         if context and etype == 'flows':
             # filter contexts before counting offset
             if e.context:
-                if not e.context.is_subcompartment(context):
+                if not query.get_context(e.context).is_subcompartment(context):
                     continue
             else:
                 continue
