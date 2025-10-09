@@ -1,0 +1,21 @@
+OK, the app is called 'qdb', for 'quantity database'.  There are a total of three pages.
+
+The overall aesthetic should be sparse.  The normal dash bootstrap stylesheet is fine for now.
+
+Across all pages there should be a banner with the two logos "xdb/api/assets/qdb.png" on the left and  "xdb/api/assets/wordmark-Antelope-fixed.png" on the right.
+
+Also in this banner should be a status readout which will ultimately display the user's auth status and a summary of the user's selections (which will be stored in dcc.Store), and two buttons: analyze the current selection, and clear the current selection
+
+There are three pages: a landing/search page, a detail page, and an analyze page.
+
+The landing page will mainly just consist of a search bar with a submit button, and three columns below for the search results, labeled "Flowables", "Contexts", "Quantities".
+
+When the user enters a search term, the search results for each of the three categories will be populated.
+
+For each search result, the user should be able to "view" it , which goes to the second page, or "add" it to their selection, which will update the status readout, or "remove" it from the search set (making room for an additional entry if the search returned a large set of entries)
+
+The view screen will show information about the entity the user clicked on.
+
+The analyze screen will basically show a Pandas table or chart, TBD.
+
+I'm open to your suggestions for how the UX should work for interacting with the search results (e.g. buttons, clickable icons, other).
