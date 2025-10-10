@@ -40,7 +40,7 @@ def create_analyze_page():
             dbc.Col([
                 dbc.Button(
                     html.I(className='bi bi-arrow-left'),
-                    href='/qdb/dash/',
+                    href='/qdb.dash/',
                     color='secondary',
                     size='sm',
                     className='mb-3'

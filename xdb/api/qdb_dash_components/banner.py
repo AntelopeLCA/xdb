@@ -19,7 +19,7 @@ def create_banner():
         dbc.Container([
             # Left logo
             html.Img(
-                src='/qdb/dash/assets/qdb.png',
+                src='/qdb.dash/assets/qdb.png',
                 height='50px',
                 style={'marginRight': '20px'}
             ),
@@ -49,7 +49,16 @@ def create_banner():
                         id='analyze-button',
                         color='primary',
                         size='sm',
-                        href='/qdb/dash/analyze',
+                        href='/qdb.dash/analyze',
+                        style={'marginRight': '10px'}
+                    ),
+                    dbc.Button(
+                        'Debug',
+                        id='debug-button',
+                        color='info',
+                        size='sm',
+                        outline=True,
+                        href='/qdb.dash/debug',
                         style={'marginRight': '10px'}
                     ),
                     dbc.Button(
@@ -64,13 +73,13 @@ def create_banner():
 
             # Right logo
             html.Img(
-                src='/qdb/dash/assets/wordmark-Antelope-fixed.png',
+                src='/qdb.dash/assets/wordmark-Antelope-fixed.png',
                 height='50px',
                 style={'marginLeft': '20px'}
             )
         ], fluid=True, style={'display': 'flex', 'alignItems': 'center'}),
         color='light',
-        light=True,
+        dark=False,
         className='mb-4',
         style={'padding': '10px 20px'}
     )

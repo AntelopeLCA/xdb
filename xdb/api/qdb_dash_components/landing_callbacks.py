@@ -7,6 +7,9 @@ Callbacks for search functionality and result interactions.
 from dash import Input, Output, State, html, ALL, ctx
 import dash_bootstrap_components as dbc
 from .landing import create_result_item
+from ..runtime import cat
+
+import logging
 
 
 # STUB: Replace with actual backend search implementation
@@ -61,18 +64,18 @@ def register(app):
         selected_quantities = set(selection_data.get('quantities', []))
 
         # Search each entity type (STUB calls)
-        flowables = search_backend(search_query, 'flowable')
-        contexts = search_backend(search_query, 'context')
-        quantities = search_backend(search_query, 'quantity')
+        flowables = list(cat.lcia_engine.flowables(search=search_query))
+        contexts = list(cat.lcia_engine.contexts(search=search_query))
+        quantities = list(cat.lcia_engine.quantities(search=search_query))
 
         # Create result items for flowables
         if flowables:
             flowables_results = [
                 create_result_item(
-                    item['id'],
-                    item['name'],
+                    item.name,  # not ideal, I know
+                    '%s (%d terms)' % (item.name, len(item)),
                     'flowable',
-                    is_selected=(item['id'] in selected_flowables)
+                    is_selected=(item.name in selected_flowables)
                 )
                 for item in flowables
             ]
@@ -84,10 +87,10 @@ def register(app):
         if contexts:
             contexts_results = [
                 create_result_item(
-                    item['id'],
-                    item['name'],
+                    item.fullname,
+                    item.name,
                     'context',
-                    is_selected=(item['id'] in selected_contexts)
+                    is_selected=(item.name in selected_contexts)
                 )
                 for item in contexts
             ]
@@ -99,10 +102,10 @@ def register(app):
         if quantities:
             quantities_results = [
                 create_result_item(
-                    item['id'],
+                    item.uuid,
                     item['name'],
                     'quantity',
-                    is_selected=(item['id'] in selected_quantities)
+                    is_selected=(item.uuid in selected_quantities)
                 )
                 for item in quantities
             ]
@@ -132,9 +135,18 @@ def register(app):
         if not ctx.triggered_id:
             return selection_data
 
+        # NEW: Check if this was an actual click (not just initialization)
+        triggered_value = ctx.triggered[0]['value']
+
+        # If n_clicks is None or 0, it's just initialization, not a real click
+        if triggered_value is None or triggered_value == 0:
+            return selection_data
+
         # Get the clicked button's index (format: "type:id")
         button_index = ctx.triggered_id['index']
         entity_type, entity_id = button_index.split(':', 1)
+
+        logging.warning('add_to_selection %s' % button_index)
 
         # Add to appropriate list
         if entity_type == 'flowable':
@@ -173,36 +185,48 @@ def register(app):
             Tuple of updated (flowables_results, contexts_results, quantities_results)
         """
         if not ctx.triggered_id:
+            logging.warning('No ctx.triggered_id')
+            return flowables_results, contexts_results, quantities_results
+
+        # NEW: Check if this was an actual click (not just initialization)
+        triggered_value = ctx.triggered[0]['value']
+
+        # If n_clicks is None or 0, it's just initialization, not a real click
+        if triggered_value is None or triggered_value == 0:
             return flowables_results, contexts_results, quantities_results
 
         # Get the clicked button's index (format: "type:id")
         button_index = ctx.triggered_id['index']
         entity_type, entity_id = button_index.split(':', 1)
+        logging.warning('ctx.triggered_id %s entity_type %s entity_id %s' % (ctx.triggered_id['index'], entity_type, entity_id))
 
         # Helper function to filter out the removed item
-        def filter_results(results, target_id):
+        def filter_results(results, entity_type, target_id):
+            tgt = '_result_%s_%s' % (entity_type, target_id)
             if isinstance(results, list):
+                zuzu = results[0].get('props', {}).get('id', '')
+                logging.warning('%s %s' % (results[0]['props']['id'], zuzu == tgt))
                 return [item for item in results if not (
                     isinstance(item, dict) and
-                    item.get('props', {}).get('children', {}).get('props', {}).get('children', [{}])[0].get('props', {}).get('children', [{}])[0].get('props', {}).get('id', {}).get('index', '').endswith(f':{target_id}')
+                    item.get('props', {}).get('id', '') == tgt
                 )]
             return results
 
         # Remove from appropriate column
         if entity_type == 'flowable':
-            flowables_results = filter_results(flowables_results, entity_id)
+            flowables_results = filter_results(flowables_results, entity_type, entity_id)
             if not flowables_results or (isinstance(flowables_results, list) and len(flowables_results) == 0):
                 flowables_results = html.P('No more results in this category.',
-                                          className='text-muted', style={'fontStyle': 'italic'})
+                                           className='text-muted', style={'fontStyle': 'italic'})
         elif entity_type == 'context':
-            contexts_results = filter_results(contexts_results, entity_id)
+            contexts_results = filter_results(contexts_results, entity_type, entity_id)
             if not contexts_results or (isinstance(contexts_results, list) and len(contexts_results) == 0):
                 contexts_results = html.P('No more results in this category.',
-                                         className='text-muted', style={'fontStyle': 'italic'})
+                                          className='text-muted', style={'fontStyle': 'italic'})
         elif entity_type == 'quantity':
-            quantities_results = filter_results(quantities_results, entity_id)
+            quantities_results = filter_results(quantities_results, entity_type, entity_id)
             if not quantities_results or (isinstance(quantities_results, list) and len(quantities_results) == 0):
                 quantities_results = html.P('No more results in this category.',
-                                           className='text-muted', style={'fontStyle': 'italic'})
+                                            className='text-muted', style={'fontStyle': 'italic'})
 
         return flowables_results, contexts_results, quantities_results

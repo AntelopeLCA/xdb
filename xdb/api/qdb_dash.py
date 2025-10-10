@@ -9,15 +9,20 @@ To integrate with FastAPI in xdb/api/qdb.py:
     from xdb.api.qdb_dash import create_dash_app
 
     dash_app = create_dash_app()
-    app.mount("/qdb/dash", WSGIMiddleware(dash_app.server))
+    app.mount("/qdb.dash", WSGIMiddleware(dash_app.server))
 """
 
 import dash
 from dash import dcc, html, Input, Output
 import dash_bootstrap_components as dbc
+from .runtime import cat
 
 
-def create_dash_app(requests_pathname_prefix="/qdb/dash/"):
+QDB_LCIA = [('openlca.lcia.2.7.5', 'x'),
+            ('openlca.lcia.2.7.5', 'y')]
+
+
+def create_dash_app(requests_pathname_prefix="/qdb.dash/"):
     """
     Create and configure the Dash application.
 
@@ -29,13 +34,17 @@ def create_dash_app(requests_pathname_prefix="/qdb/dash/"):
     """
     app = dash.Dash(
         __name__,
-        external_stylesheets=[dbc.themes.BOOTSTRAP],
+        title="qdb | Antelope",
+        external_stylesheets=[
+            dbc.themes.BOOTSTRAP,
+            "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
+        ],
         requests_pathname_prefix=requests_pathname_prefix,
         suppress_callback_exceptions=True
     )
 
     # Import components
-    from xdb.api.qdb_dash_components.banner import create_banner
+    from api.qdb_dash_components.banner import create_banner
 
     # Main app layout with URL routing
     app.layout = html.Div([
@@ -66,18 +75,21 @@ def register_callbacks(app):
     )
     def display_page(pathname):
         """Route to appropriate page based on URL."""
-        from xdb.api.qdb_dash_components.landing import create_landing_page
-        from xdb.api.qdb_dash_components.detail import create_detail_page
-        from xdb.api.qdb_dash_components.analyze import create_analyze_page
+        from api.qdb_dash_components.landing import create_landing_page
+        from api.qdb_dash_components.detail import create_detail_page
+        from api.qdb_dash_components.analyze import create_analyze_page
+        from api.qdb_dash_components.debug import create_debug_page
 
-        if pathname and pathname.startswith('/qdb/dash/detail/'):
+        if pathname and pathname.startswith('/qdb.dash/detail/'):
             # Extract entity type and ID from URL
             parts = pathname.split('/')
-            if len(parts) >= 5:
-                entity_type = parts[4]
-                entity_id = parts[5] if len(parts) > 5 else None
+            if len(parts) >= 4:
+                entity_type = parts[3]
+                entity_id = parts[4] if len(parts) > 4 else None
                 return create_detail_page(entity_type, entity_id)
             return create_detail_page()
+        elif pathname and '/debug' in pathname:
+            return create_debug_page()
         elif pathname and '/analyze' in pathname:
             return create_analyze_page()
         else:
@@ -85,13 +97,15 @@ def register_callbacks(app):
             return create_landing_page()
 
     # Import component callbacks
-    from xdb.api.qdb_dash_components import banner_callbacks
-    from xdb.api.qdb_dash_components import landing_callbacks
-    from xdb.api.qdb_dash_components import analyze_callbacks
+    from api.qdb_dash_components import banner_callbacks
+    from api.qdb_dash_components import landing_callbacks
+    from api.qdb_dash_components import analyze_callbacks
+    from api.qdb_dash_components import debug_callbacks
 
     banner_callbacks.register(app)
     landing_callbacks.register(app)
     analyze_callbacks.register(app)
+    debug_callbacks.register(app)
 
 
 # Create the app instance

@@ -44,7 +44,7 @@ def create_detail_page(entity_type=None, entity_id=None):
             ),
             dbc.Button(
                 'Back to Search',
-                href='/qdb/dash/',
+                href='/qdb.dash/',
                 color='primary'
             )
         ])
@@ -60,7 +60,7 @@ def create_detail_page(entity_type=None, entity_id=None):
             ),
             dbc.Button(
                 'Back to Search',
-                href='/qdb/dash/',
+                href='/qdb.dash/',
                 color='primary'
             )
         ])
@@ -72,7 +72,7 @@ def create_detail_page(entity_type=None, entity_id=None):
             dbc.Col([
                 dbc.Button(
                     html.I(className='bi bi-arrow-left'),
-                    href='/qdb/dash/',
+                    href='/qdb.dash/',
                     color='secondary',
                     size='sm',
                     className='mb-3'
@@ -101,7 +101,7 @@ def create_detail_page(entity_type=None, entity_id=None):
             dbc.CardBody([
                 html.Div(id='entity-related-content', children=[
                     html.P('Related information will be displayed here.',
-                          className='text-muted', style={'fontStyle': 'italic'})
+                           className='text-muted', style={'fontStyle': 'italic'})
                 ])
             ])
         ])

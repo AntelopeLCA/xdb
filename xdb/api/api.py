@@ -12,6 +12,7 @@ from .models.response import ServerMeta, PostTerm
 
 from .runtime import cat, search_entities, do_lcia, init_origin, MASTER_ISSUER, canonical_cf
 from .qdb import qdb_router
+from .qdb_dash import dash_app
 from .auth import get_token_grants, get_token_command
 
 from .libs.xdb_query import InterfaceNotAuthorized, GuestTokenFailed, GuestTokenRejected
@@ -26,6 +27,7 @@ from antelope.xdb_tokens import IssuerKey
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.wsgi import WSGIMiddleware
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -52,6 +54,7 @@ app = FastAPI(
     description="API for the exchange database"
 )
 
+app.mount("/qdb.dash", WSGIMiddleware(dash_app.server))
 app.include_router(qdb_router)
 
 logging.warning("""\n\n\nxdb system [%s] STARTUP %s\n\n""" % (XDB_VERSION, datetime.now(tz=timezone.utc)))

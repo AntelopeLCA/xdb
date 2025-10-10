@@ -44,7 +44,7 @@ def create_landing_page():
                 html.H5('Flowables', className='mb-3'),
                 html.Div(id='flowables-results', children=[
                     html.P('No results yet. Enter a search term above.',
-                          className='text-muted', style={'fontStyle': 'italic'})
+                           className='text-muted', style={'fontStyle': 'italic'})
                 ])
             ], width=4, style={'borderRight': '1px solid #dee2e6', 'paddingRight': '20px'}),
 
@@ -53,7 +53,7 @@ def create_landing_page():
                 html.H5('Contexts', className='mb-3'),
                 html.Div(id='contexts-results', children=[
                     html.P('No results yet. Enter a search term above.',
-                          className='text-muted', style={'fontStyle': 'italic'})
+                           className='text-muted', style={'fontStyle': 'italic'})
                 ])
             ], width=4, style={'borderRight': '1px solid #dee2e6', 'paddingRight': '20px'}),
 
@@ -62,7 +62,7 @@ def create_landing_page():
                 html.H5('Quantities', className='mb-3'),
                 html.Div(id='quantities-results', children=[
                     html.P('No results yet. Enter a search term above.',
-                          className='text-muted', style={'fontStyle': 'italic'})
+                           className='text-muted', style={'fontStyle': 'italic'})
                 ])
             ], width=4)
         ], className='mt-4')
@@ -100,7 +100,7 @@ def create_result_item(item_id, item_name, item_type, is_selected=False):
                         color='info',
                         size='sm',
                         outline=True,
-                        href=f'/qdb/dash/detail/{item_type}/{item_id}',
+                        href=f'/qdb.dash/detail/{item_type}/{item_id}',
                         title='View details',
                         style={'marginRight': '5px'}
                     ),
@@ -125,4 +125,4 @@ def create_result_item(item_id, item_name, item_type, is_selected=False):
                 ], style={'display': 'flex', 'gap': '5px'})
             ], style={'display': 'flex', 'alignItems': 'center', 'justifyContent': 'space-between'})
         ], style={'padding': '10px'})
-    ], className='mb-2')
+    ], className='mb-2', id='_result_%s_%s' % (item_type, item_id))
