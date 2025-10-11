@@ -105,12 +105,12 @@ def create_result_item(item_id, item_name, item_type, is_selected=False):
                         style={'marginRight': '5px'}
                     ),
                     dbc.Button(
-                        html.I(className='bi bi-plus-circle' if not is_selected else 'bi bi-check-circle'),
+                        html.I(className='bi bi-plus-circle' if not is_selected else 'bi bi-dash-circle'),
                         id={'type': 'add-button', 'index': f'{item_type}:{item_id}'},
-                        color='success' if not is_selected else 'secondary',
+                        color='success' if not is_selected else 'primary',
                         size='sm',
                         outline=not is_selected,
-                        disabled=is_selected,
+                        # disabled=is_selected,
                         title='Add to selection' if not is_selected else 'Already in selection',
                         style={'marginRight': '5px'}
                     ),

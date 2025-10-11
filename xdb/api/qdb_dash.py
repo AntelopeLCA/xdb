@@ -54,6 +54,11 @@ def create_dash_app(requests_pathname_prefix="/qdb.dash/"):
             'contexts': [],
             'quantities': []
         }),
+        dcc.Store(id='search-results-cache', storage_type='session', data={
+            'flowables': [],
+            'contexts': [],
+            'quantities': []
+        }),
         dcc.Store(id='auth-info', data={}),  # Will be populated from FastAPI
         create_banner(),
         html.Div(id='page-content', style={'padding': '20px'})
@@ -99,11 +104,13 @@ def register_callbacks(app):
     # Import component callbacks
     from api.qdb_dash_components import banner_callbacks
     from api.qdb_dash_components import landing_callbacks
+    from api.qdb_dash_components import detail_callbacks
     from api.qdb_dash_components import analyze_callbacks
     from api.qdb_dash_components import debug_callbacks
 
     banner_callbacks.register(app)
     landing_callbacks.register(app)
+    detail_callbacks.register(app)
     analyze_callbacks.register(app)
     debug_callbacks.register(app)
 
