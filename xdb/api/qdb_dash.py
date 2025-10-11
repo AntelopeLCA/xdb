@@ -15,11 +15,6 @@ To integrate with FastAPI in xdb/api/qdb.py:
 import dash
 from dash import dcc, html, Input, Output
 import dash_bootstrap_components as dbc
-from .runtime import cat
-
-
-QDB_LCIA = [('openlca.lcia.2.7.5', 'x'),
-            ('openlca.lcia.2.7.5', 'y')]
 
 
 def create_dash_app(requests_pathname_prefix="/qdb.dash/"):

@@ -670,9 +670,11 @@ def get_remote_lcia_generic(origin: str, process: str, ref_flow: Optional[str] =
     rx = _get_rx_by_ref_flow(p, ref_flow)
     lci = list(p.lci(rx))
 
-    qs = [q for origin in cat.pre_load for q in cat.query(origin).lcia_methods()]
-    ress = [q.do_lcia(lci) for q in qs]
-    return [LciaResult.from_lcia_result(p, res) for res in ress]
+    if len(cat.pre_load) > 0:
+        origin = cat.pre_load[0]
+        qs = [q for q in cat.query(origin).lcia_methods()]
+        ress = [q.do_lcia(lci) for q in qs]
+        return [LciaResult.from_lcia_result(p, res) for res in ress]
 
 
 def _get_lcia_quantity(qty_org, quantity, token):

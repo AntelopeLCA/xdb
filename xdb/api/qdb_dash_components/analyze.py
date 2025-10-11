@@ -7,7 +7,8 @@ including Pandas tables or charts.
 
 from dash import html, dcc, dash_table
 import dash_bootstrap_components as dbc
-import pandas as pd
+from .qdb_analyzer import QdbAnalyzer
+from ..runtime import cat
 
 
 # STUB: Replace with actual backend analysis
@@ -21,10 +22,10 @@ def analyze_selection(selection_data):
     Returns:
         Dictionary with analysis results (dataframes, charts, etc.)
     """
-    # TODO: Implement actual backend analysis
-    # This should call into your backend resources to perform analysis
-    # on the selected flowables, contexts, and quantities
-    return None
+    q_ana = QdbAnalyzer(cat, flowables=selection_data.get('flowables', []),
+                        contexts=selection_data.get('contexts', []),
+                        quantities=selection_data.get('quantities', []))
+    return {'dataframe': q_ana.analyze()}
 
 
 def create_analyze_page():
@@ -119,6 +120,22 @@ def create_analyze_page():
     ])
 
 
+def create_results_table_simple(df):
+    """
+    Create a Dash DataTable from a pandas DataFrame.
+
+    Args:
+        df: pandas DataFrame with results
+
+    Returns:
+        Dash DataTable component
+    """
+    if df is None or df.empty:
+        return html.P('No data to display.', className='text-muted')
+
+    return dbc.Table.from_dataframe(df.reset_index())
+
+
 def create_results_table(df):
     """
     Create a Dash DataTable from a pandas DataFrame.
@@ -133,7 +150,7 @@ def create_results_table(df):
         return html.P('No data to display.', className='text-muted')
 
     return dash_table.DataTable(
-        data=df.to_dict('records'),
+        data=df.reset_index().to_dict('records'),
         columns=[{'name': col, 'id': col} for col in df.columns],
         style_table={'overflowX': 'auto'},
         style_cell={
