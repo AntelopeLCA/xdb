@@ -77,9 +77,13 @@ class QdbAnalyzer:
         columns: flowable
         :return:
         """
-        return pd.DataFrame({
+        df = pd.DataFrame({
             fb.name: self._factors_for_flowable(fb.name)
-            for fb in self.flowables}).rename_axis(['Quantity', 'Context', 'Location', 'Ref Unit'])
+            for fb in self.flowables})
+        if len(df.index.names) == 4:
+            df.rename_axis(['Quantity', 'Context', 'Location', 'Ref Unit'], inplace=True)
+        return df.loc[df.sort_values(by=df.columns[0],
+                                     ascending=False).notna().sum(axis=1).sort_values(ascending=False).index]
 
     def _factors_for_quantity(self, quantity):
         return pd.Series(dict(chain(*(_cf_to_ffq(cf) for cf in self.lcia.factors_for_quantity(quantity)
@@ -90,10 +94,14 @@ class QdbAnalyzer:
         columns: flowable
         :return:
         """
-        return pd.DataFrame({
+        df = pd.DataFrame({
             (q['Method'], q['Category'], q.unit): self._factors_for_quantity(q)
             for q in self.quantities
-        }).rename_axis(['Flowable', 'Context', 'Location', 'Ref Unit'])
+        })
+        if len(df.index.names) == 4:
+            df.rename_axis(['Flowable', 'Context', 'Location', 'Ref Unit'], inplace=True)
+        return df.loc[df.sort_values(by=df.columns[0],
+                                     ascending=False).notna().sum(axis=1).sort_values(ascending=False).index]
 
     def analyze(self, limit=100):
         if len(self._fb) == 0:

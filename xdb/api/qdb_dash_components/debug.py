@@ -17,14 +17,21 @@ QDB_LCIA = [('lcia.openlca.2.7.5', '2e5cd15d-d539-3141-a950-56d75df9d579'),]
 
 def _pre_load():
     logging.warning('Pre-loading ReCipe Specs')
+    orgs = set()
     items = []
+    for org in cat.pre_load:
+        list([l for l in cat.query(org).lcia_methods()])
+        orgs.add(org)
+        items.append(html.P(f"Pre-load {org}"))
     for org, meth in QDB_LCIA:
+        if org in orgs:
+            continue
         cat.pre_load_query(org)
         e = cat.query(org).get(meth)
         items.append(html.P(f"Methodology {e}"))
         for i in e['ImpactCategories']:
-            cat.query(org).get(i)
-            items.append(html.P(f"Method {i}", style={'margin-bottom': 0}))
+            o = cat.query(org).get(i)
+            items.append(html.P(f"Method {o}", style={'margin-bottom': 0}))
     logging.warning('Done')
     return html.Div(items)
 
