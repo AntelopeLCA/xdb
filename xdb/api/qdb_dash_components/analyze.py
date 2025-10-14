@@ -25,7 +25,35 @@ def analyze_selection(selection_data):
     q_ana = QdbAnalyzer(cat, flowables=selection_data.get('flowables', []),
                         contexts=selection_data.get('contexts', []),
                         quantities=selection_data.get('quantities', []))
-    return {'dataframe': q_ana.analyze()}
+    return {'dataframe': q_ana.analyze(),
+            'debug': q_ana.debug_for_flowables()}
+
+
+def debug_selection(selection_data):
+    q_ana = QdbAnalyzer(cat, flowables=selection_data.get('flowables', []),
+                        contexts=selection_data.get('contexts', []),
+                        quantities=selection_data.get('quantities', []))
+    return dbc.Row([
+        dbc.Col([
+            dbc.Row([
+                dbc.Col([
+                    f
+                ]),dbc.Col([str(k) for k in cat.lcia_engine.factors_for_flowable(f)])
+            ])
+            for f in selection_data.get('flowables')
+        ])
+    ])
+
+
+def _pre_load():
+    items = []
+
+    for org in cat.pre_load:
+        for l in cat.query(org).lcia_methods():
+            cat.flush_factors(l)
+        items.append(html.P(f"Pre-load {org}"))
+
+    return html.Div(items)
 
 
 def create_analyze_page():
@@ -36,6 +64,8 @@ def create_analyze_page():
         A Dash component containing the analysis view
     """
     return html.Div([
+        dcc.Download(id='download-dataframe'),
+        _pre_load(),
         # Header
         dbc.Row([
             dbc.Col([
@@ -72,7 +102,8 @@ def create_analyze_page():
                             options=[
                                 {'label': 'Summary Table', 'value': 'table'},
                                 {'label': 'Chart View', 'value': 'chart'},
-                                {'label': 'Detailed Report', 'value': 'report'}
+                                {'label': 'Detailed Report', 'value': 'report'},
+                                {'label': 'Debug', 'value': 'debug'}
                             ],
                             value='table',
                             className='mb-3'
@@ -133,7 +164,7 @@ def create_results_table_simple(df):
     if df is None or df.empty:
         return html.P('No data to display.', className='text-muted')
 
-    return dbc.Table.from_dataframe(df.reset_index())
+    return dbc.Table.from_dataframe(df[:100].reset_index())
 
 
 def create_results_table(df):

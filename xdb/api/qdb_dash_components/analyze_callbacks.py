@@ -4,10 +4,11 @@ Analyze Page Callbacks
 Callbacks for the analysis functionality.
 """
 
-from dash import Input, Output, State, html, ALL
+from dash import Input, Output, State, html, ALL, dcc, no_update
 import dash_bootstrap_components as dbc
 import pandas as pd
-from .analyze import create_results_table, create_results_chart, analyze_selection, create_results_table_simple
+from io import BytesIO
+from .analyze import analyze_selection, create_results_table_simple, debug_selection
 from ..runtime import cat
 
 lcia = cat.lcia_engine
@@ -228,10 +229,12 @@ def register(app):
             # Assume results contains a dataframe
             df = results.get('dataframe')
             return create_results_table_simple(df)
-        elif analysis_type == 'chart':
+        elif analysis_type == 'debug':
+            return debug_selection(selection_data)
+            # return create_results_table_simple(results.get('debug'))
             # Assume results contains chart data
-            chart_data = results.get('chart_data')
-            return create_results_chart('bar', chart_data)
+            # chart_data = results.get('chart_data')
+            # return create_results_chart('bar', chart_data)
         else:  # report
             # Display a detailed report
             return html.Div([
@@ -240,7 +243,7 @@ def register(app):
             ])
 
     @app.callback(
-        Output('export-results-button', 'n_clicks'),
+        Output('download-dataframe', 'data'),
         Input('export-results-button', 'n_clicks'),
         State('user-selection', 'data'),
         State('export-format-dropdown', 'value'),
@@ -256,9 +259,29 @@ def register(app):
             export_format: Format for export (csv, xlsx, json)
 
         Returns:
-            None (triggers download in actual implementation)
+            Download data for dcc.Download
         """
-        # STUB: This would trigger a download of the analysis results
-        # TODO: Implement actual export functionality using dcc.Download
-        # For now, this is just a placeholder
-        pass
+        if not selection_data or n_clicks is None:
+            return no_update
+
+        # Run analysis to get the dataframe
+        results = analyze_selection(selection_data)
+        df = results.get('dataframe')
+
+        if df is None or df.empty:
+            return no_update
+
+        # Reset index to include it in the export
+        df_export = df.reset_index()
+
+        # Generate filename
+        timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
+
+        if export_format == 'csv':
+            return dcc.send_data_frame(df_export.to_csv, f"qdb_analysis_{timestamp}.csv", index=False)
+        elif export_format == 'xlsx':
+            return dcc.send_data_frame(df_export.to_excel, f"qdb_analysis_{timestamp}.xlsx", index=False)
+        elif export_format == 'json':
+            return dcc.send_data_frame(df_export.to_json, f"qdb_analysis_{timestamp}.json", orient='records')
+
+        return no_update

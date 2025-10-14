@@ -35,10 +35,12 @@ def register(app):
     @app.callback(
         Output('search-results-cache', 'data'),
         Input('search-button', 'n_clicks'),
+        Input('search-input', 'n_submit'),  # NEW: Trigger on Enter key
         State('search-input', 'value'),
+        State('search-results-cache', 'data'),
         prevent_initial_call=True
     )
-    def perform_search(n_clicks, search_query):
+    def perform_search(n_clicks, n_submit, search_query, existing_results):
         """
         Execute search and store raw results.
 
@@ -50,19 +52,36 @@ def register(app):
             Dictionary with raw search results
         """
 
-        logging.warning('entering perform_search with %s' % search_query)
-        if not n_clicks or n_clicks == 0:
+        logging.warning('entering perform_search with %s (existing %s)' % (search_query, existing_results.get('queries')))
+        if (not n_clicks or n_clicks == 0) and (not n_submit or n_submit == 0):
             logging.warning('n_clicks is None or 0, using no_update')
             return no_update
 
         if not search_query or not search_query.strip():
             logging.warning('returning empty')
-            return {'flowables': [], 'contexts': [], 'quantities': []}
+            return {'flowables': [], 'contexts': [], 'quantities': [], 'queries': []}
 
-        # Search each entity type
-        flowables = list(cat.lcia_engine.flowables(search=search_query))
-        contexts = list(cat.lcia_engine.contexts(search=search_query))
-        quantities = list(cat.lcia_engine.quantities(search=search_query))
+        lquery = search_query.strip().lower()
+
+        if len(existing_results.get('queries', [])) > 0:
+            """ narrow the search """
+            flowables = list(cat.lcia_engine.get_flowable(k['id']) for k in existing_results['flowables']
+                             if k['id'].lower().find(lquery) >= 0)
+            contexts = list(cat.lcia_engine[k['id']] for k in existing_results['contexts']
+                            if k['id'].lower().find(lquery) >= 0)
+            quantities = list(cat.lcia_engine.get_canonical(k['id']) for k in existing_results['quantities']
+                              if k['name'].lower().find(lquery)>= 0)
+            queries = existing_results['queries'] + [search_query]
+
+        else:
+            # Search each entity type
+            flowables = list(cat.lcia_engine.flowables(search=search_query))
+            contexts = list(cat.lcia_engine.contexts(search=search_query))
+            quantities = list(cat.lcia_engine.quantities(search=search_query))
+            if len(flowables) + len(contexts) + len(quantities) == 0:
+                queries = []
+            else:
+                queries = [search_query]
 
         # Store as serializable data
         return {
@@ -77,13 +96,17 @@ def register(app):
             'quantities': [
                 {'id': item.uuid, 'name': item['name']}
                 for item in quantities
-            ]
+            ],
+            'queries': queries
         }
 
     @app.callback(
         Output('flowables-results', 'children'),
         Output('contexts-results', 'children'),
         Output('quantities-results', 'children'),
+        Output('current-search-queries', 'children'),
+        Output('clear-search-button', 'color'),
+        Output('search-button', 'value'),
         Input('search-results-cache', 'data'),
         Input('user-selection', 'data'),
     )
@@ -109,18 +132,20 @@ def register(app):
         if not search_results:
             empty_msg = html.P('No results yet. Enter a search term above.',
                              className='text-muted', style={'fontStyle': 'italic'})
-            return empty_msg, empty_msg, empty_msg
+            return empty_msg, empty_msg, empty_msg, None, 'secondary', 'Search'
 
         # Get current selections for each type
         selected_flowables = set(selection_data.get('flowables', []))
         selected_contexts = set(selection_data.get('contexts', []))
         selected_quantities = set(selection_data.get('quantities', []))
 
+        nada = True
+
         # Render flowables
         flowables = search_results.get('flowables', [])
         if flowables:
-            flowables_results = [
-                create_result_item(
+            nada = False
+            flowables_results = [html.P(["%d" % len(flowables), "items"])] + [create_result_item(
                     item['id'],
                     item['name'],
                     'flowable',
@@ -135,8 +160,8 @@ def register(app):
         # Render contexts
         contexts = search_results.get('contexts', [])
         if contexts:
-            contexts_results = [
-                create_result_item(
+            nada = False
+            contexts_results = [html.P(["%d" % len(contexts), "items"])] + [create_result_item(
                     item['id'],
                     item['name'],
                     'context',
@@ -151,8 +176,8 @@ def register(app):
         # Render quantities
         quantities = search_results.get('quantities', [])
         if quantities:
-            quantities_results = [
-                create_result_item(
+            nada = False
+            quantities_results = [html.P(["%d" % len(quantities), "items"])] + [create_result_item(
                     item['id'],
                     item['name'],
                     'quantity',
@@ -164,7 +189,21 @@ def register(app):
             quantities_results = html.P('No quantities found.',
                                        className='text-muted', style={'fontStyle': 'italic'})
 
-        return flowables_results, contexts_results, quantities_results
+        if nada:
+            sq_msg = 'No Results!'
+            sb_msg = 'Search'
+        else:
+            sq_msg = 'Search Queries '
+            sb_msg = 'Refine'
+        q_entries = [dbc.ListGroupItem(sq_msg,
+                                       style={'fontWeight': 'bold', 'border': 'none'})]
+
+        for q in search_results.get('queries', []):
+            q_entries.append(dbc.ListGroupItem(q))
+        current_queries = dbc.ListGroup(q_entries, horizontal=True)
+
+        return flowables_results, contexts_results, quantities_results, current_queries, 'primary', sb_msg
+
 
     @app.callback(
         Output('user-selection', 'data', allow_duplicate=True),
@@ -280,3 +319,62 @@ def register(app):
             ]
 
         return search_results
+
+    @app.callback(
+        Output('search-results-cache', 'data', allow_duplicate=True),
+        # Output('clear-search-button', 'color'),
+        Output('search-input', 'value', allow_duplicate=True),
+        Input('clear-search-button', 'n_clicks'),
+        prevent_initial_call=True
+        )
+    def clear_search(n_clicks):
+        """Clear the search cache."""
+        if not n_clicks or n_clicks == 0:
+            return no_update
+
+        logging.warning('Clearing search cache')
+        return {'flowables': [], 'contexts': [], 'quantities': [], 'queries': []}, ''
+
+    @app.callback(
+        Output('user-selection', 'data', allow_duplicate=True),
+        Input('add-all-flowables-button', 'n_clicks'),
+        Input('add-all-contexts-button', 'n_clicks'),
+        Input('add-all-quantities-button', 'n_clicks'),
+        State('search-results-cache', 'data'),
+        State('user-selection', 'data'),
+        prevent_initial_call=True
+    )
+    def add_all_results(n_flowables, n_contexts, n_quantities, search_results, selection_data):
+        """Add all results from a column to the selection."""
+        from dash import ctx
+
+        if not ctx.triggered_id:
+            return no_update
+
+        # Check if this was an actual click
+        triggered_value = ctx.triggered[0]['value']
+        if triggered_value is None or triggered_value == 0:
+            return no_update
+
+        # Create new selection
+        new_selection = {
+            'flowables': selection_data.get('flowables', []).copy(),
+            'contexts': selection_data.get('contexts', []).copy(),
+            'quantities': selection_data.get('quantities', []).copy()
+        }
+
+        # Add all from the appropriate category
+        if ctx.triggered_id == 'add-all-flowables-button':
+            for item in search_results.get('flowables', []):
+                if item['id'] not in new_selection['flowables']:
+                    new_selection['flowables'].append(item['id'])
+        elif ctx.triggered_id == 'add-all-contexts-button':
+            for item in search_results.get('contexts', []):
+                if item['id'] not in new_selection['contexts']:
+                    new_selection['contexts'].append(item['id'])
+        elif ctx.triggered_id == 'add-all-quantities-button':
+            for item in search_results.get('quantities', []):
+                if item['id'] not in new_selection['quantities']:
+                    new_selection['quantities'].append(item['id'])
+
+        return new_selection

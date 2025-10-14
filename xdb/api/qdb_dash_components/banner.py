@@ -18,12 +18,14 @@ def create_banner():
     return dbc.Navbar(
         dbc.Container([
             # Left logo
-            html.Img(
-                src='/qdb.dash/assets/qdb.png',
-                height='50px',
-                style={'marginRight': '20px'}
+            html.A(children=[
+                html.Img(
+                    src='/qdb.dash/assets/qdb.png',
+                    height='50px',
+                    style={'marginRight': '20px'}
+                )],
+                href='/qdb.dash/'
             ),
-
             # Center section: Auth status and selection summary
             dbc.Row([
                 dbc.Col([
@@ -72,11 +74,13 @@ def create_banner():
             ]),
 
             # Right logo
-            html.Img(
-                src='/qdb.dash/assets/wordmark-Antelope-fixed.png',
-                height='50px',
-                style={'marginLeft': '20px'}
-            )
+            html.A(children=[
+                html.Img(
+                    src='/qdb.dash/assets/wordmark-Antelope-fixed.png',
+                    height='50px',
+                    style={'marginLeft': '20px'}
+                )],
+                href='https://antelopelca.github.io/'),
         ], fluid=True, style={'display': 'flex', 'alignItems': 'center'}),
         color='light',
         dark=False,

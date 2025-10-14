@@ -6,6 +6,7 @@ Main search interface with search bar and results in three columns.
 
 from dash import html, dcc
 import dash_bootstrap_components as dbc
+from .doco import landing_text
 
 
 def create_landing_page():
@@ -19,7 +20,21 @@ def create_landing_page():
         # Search bar section
         dbc.Row([
             dbc.Col([
-                html.H3('QDB Search', className='mb-3'),
+                landing_text(),
+                dbc.Row([
+                    dbc.Col([
+                        html.Div(id='current-search-queries'),
+                    ], width=11),
+                    dbc.Col([
+                    dbc.Button(
+                        'Clear Search',
+                        id='clear-search-button',
+                        color='secondary',
+                        size='sm',
+                        outline=True,
+                        className='mb-3'),
+                    ])
+                ]),
                 dbc.InputGroup([
                     dbc.Input(
                         id='search-input',
@@ -41,7 +56,20 @@ def create_landing_page():
         dbc.Row([
             # Flowables column
             dbc.Col([
-                html.H5('Flowables', className='mb-3'),
+                dbc.Row([
+                    dbc.Col([
+                        html.H5('Flowables', className='mb-3')
+                        ]),
+                    dbc.Col([
+                        dbc.Button(
+                            'Add All',
+                            id='add-all-flowables-button',
+                            color='success',
+                            size='sm',
+                            outline=True
+                        )
+                        ], style={'text-align': 'right'})
+                    ]),
                 html.Div(id='flowables-results', children=[
                     html.P('No results yet. Enter a search term above.',
                            className='text-muted', style={'fontStyle': 'italic'})
@@ -50,7 +78,20 @@ def create_landing_page():
 
             # Contexts column
             dbc.Col([
-                html.H5('Contexts', className='mb-3'),
+                dbc.Row([
+                    dbc.Col([
+                        html.H5('Contexts', className='mb-3')
+                        ]),
+                    dbc.Col([
+                        dbc.Button(
+                            'Add All',
+                            id='add-all-contexts-button',
+                            color='success',
+                            size='sm',
+                            outline=True
+                        )
+                        ], style={'text-align': 'right'})
+                    ]),
                 html.Div(id='contexts-results', children=[
                     html.P('No results yet. Enter a search term above.',
                            className='text-muted', style={'fontStyle': 'italic'})
@@ -59,7 +100,20 @@ def create_landing_page():
 
             # Quantities column
             dbc.Col([
-                html.H5('Quantities', className='mb-3'),
+                dbc.Row([
+                    dbc.Col([
+                        html.H5('Quantities', className='mb-3')
+                        ]),
+                    dbc.Col([
+                        dbc.Button(
+                            'Add All',
+                            id='add-all-quantities-button',
+                            color='success',
+                            size='sm',
+                            outline=True
+                        )
+                        ], style={'text-align': 'right'})
+                    ]),
                 html.Div(id='quantities-results', children=[
                     html.P('No results yet. Enter a search term above.',
                            className='text-muted', style={'fontStyle': 'italic'})

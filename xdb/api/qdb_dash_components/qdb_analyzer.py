@@ -64,13 +64,18 @@ class QdbAnalyzer:
         :param cf:
         :return:
         """
+        fb = self.lcia.get_flowable(cf.flowable)
         return (len(self._cx) == 0 or cf.context in self._cx) and \
-            (len(self._fb) == 0 or any(cf.flowable in f for f in self.flowables)) and \
-            (len(self._q) == 0 or cf.quantity in self.quantities)
+            (len(self._fb) == 0 or fb in self._fb) and \
+            (len(self._q) == 0 or cf.quantity in self._q)
 
     def _factors_for_flowable(self, flowable):
         return pd.Series(dict(chain(*(_cf_to_fff(cf) for cf in self.lcia.factors_for_flowable(flowable)
                                       if self._pass_cf(cf)))))
+
+    def debug_for_flowables(self):
+        return pd.DataFrame({'flowables': ('F1', 'F2', 'F3')})
+        # return self._factors_for_flowable(self._fb[0])
 
     def factors_for_flowables(self):
         """
@@ -103,13 +108,13 @@ class QdbAnalyzer:
         return df.loc[df.sort_values(by=df.columns[0],
                                      ascending=False).notna().sum(axis=1).sort_values(ascending=False).index]
 
-    def analyze(self, limit=100):
+    def analyze(self):
         if len(self._fb) == 0:
             if len(self._q) == 0:
                 return pd.DataFrame()
-            return self.factors_for_quantities()[:limit]
+            return self.factors_for_quantities()
         if len(self._q) == 0:
-            return self.factors_for_flowables()[:limit]
+            return self.factors_for_flowables()
         if len(self._q) < len(self._fb):
             return self.factors_for_quantities()
         return self.factors_for_flowables()

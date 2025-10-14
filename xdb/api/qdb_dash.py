@@ -52,7 +52,8 @@ def create_dash_app(requests_pathname_prefix="/qdb.dash/"):
         dcc.Store(id='search-results-cache', storage_type='session', data={
             'flowables': [],
             'contexts': [],
-            'quantities': []
+            'quantities': [],
+            'queries': []
         }),
         dcc.Store(id='auth-info', data={}),  # Will be populated from FastAPI
         create_banner(),
