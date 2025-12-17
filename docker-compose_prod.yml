@@ -12,6 +12,7 @@ services:
             - /data/LCI/docker_8000/:/xdb_8000/
             # AWS data root - this could be a volume with no bind mount on the AMI- unless we want to share data
             - /data/LCI/aws-data/:/aws_data/
+            # be sure to symlink dependencies: antelope, antelope_core, antelope_background, qdb_dash_app
         labels:
             - "traefik.enable=true"
             - "traefik.http.routers.xdb.rule=Host(`ca.vault.lc`)"  # must be set at deployment

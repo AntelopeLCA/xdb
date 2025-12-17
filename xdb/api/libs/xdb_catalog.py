@@ -102,6 +102,9 @@ class XdbCatalog(LcCatalog):
     _query_type = XdbQuery
     pre_load = []
 
+    def flush_factors(self, quantity):
+        self.lcia_engine._check_factors(quantity)
+
     def pre_load_query(self, origin, **kwargs):
         """
         Pre-loaded queries will be available to all users without authentication
