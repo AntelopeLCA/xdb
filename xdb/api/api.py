@@ -8,11 +8,16 @@ from antelope_core.implementations.exchange import MixedDirections
 from antelope.models.auth import AuthorizationGrant
 from antelope_core.contexts import NullContext
 
+DASH_PATH = 'qdb.dash'
+try:
+    from qdb_dash_app import create_dash_app
+except ImportError:
+    create_dash_app = None
+
 from .models.response import ServerMeta, PostTerm
 
 from .runtime import cat, search_entities, do_lcia, init_origin, MASTER_ISSUER, canonical_cf
 from .qdb import qdb_router
-from .qdb_dash import dash_app
 from .auth import get_token_grants, get_token_command
 
 from .libs.xdb_query import InterfaceNotAuthorized, GuestTokenFailed, GuestTokenRejected
@@ -54,7 +59,13 @@ app = FastAPI(
     description="API for the exchange database"
 )
 
-app.mount("/qdb.dash", WSGIMiddleware(dash_app.server))
+if create_dash_app is not None:
+    # note the differing forward-slashes
+    dash_app = create_dash_app(cat, requests_pathname_prefix=f'/{DASH_PATH}/')
+    app.mount(f"/{DASH_PATH}", WSGIMiddleware(dash_app.server))
+else:
+    logging.warning("Import Error: no qdb dash app available")
+
 app.include_router(qdb_router)
 
 logging.warning("""\n\n\nxdb system [%s] STARTUP %s\n\n""" % (XDB_VERSION, datetime.now(tz=timezone.utc)))

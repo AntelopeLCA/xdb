@@ -1,8 +1,10 @@
-XDB_VERSION = "0.1.4.1"
+XDB_VERSION = "0.1.5.9"
 
 
 '''
 Version History
+0.1.5.9 - 2025-12-16 - qdb.dash as separate package
+
 0.1.4.1 - 2024-06-14 - exchange relation
 
 0.1.4 - 2024-05-17 - start versioning more carefully. check 'reset' to reinitialize origins. 
